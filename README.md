@@ -1,52 +1,45 @@
-# Schematic Synchronizer
+Schematic Synchronizer
+====================
+Schematic Synchronizer is a client-and-server Fabric mod for Minecraft 1.21.4 that integrates directly into [Litematica](https://github.com/sakura-ryoko/litematica).
+It allows server administrators and players to host schematics on the server side, browse them via a dedicated Litematica menu, download them on demand, and synchronize placements between players in real time.
 
-**Schematic Synchronizer** is a Fabric mod for Minecraft (1.21.4) that enables seamless synchronization of schematics between a server and its clients, integrating directly into the [Litematica](https://github.com/sakura-ryoko/litematica) interface.
+Requirements
+============
+### Client
+* [Fabric Loader](https://fabricmc.net/) (0.16.10+)
+* [Fabric API](https://modrinth.com/mod/fabric-api)
+* [MaLiLib](https://github.com/sakura-ryoko/malilib) (26.2 / 0.29.4+)
+* [Litematica](https://github.com/sakura-ryoko/litematica) (26.2 / 0.28.5+)
 
----
+### Server
+* [Fabric Loader](https://fabricmc.net/) (0.16.10+)
+* [Fabric API](https://modrinth.com/mod/fabric-api)
 
-## ✨ Features
+Usage & Features
+================
 
-- **📂 Server Schematics Browser in Litematica**:
-  - Adds a dedicated **"Server Schematics"** button to the main Litematica menu (`M`).
-  - Full directory navigation with subfolders, folder contents count, and back navigation.
-  - Native Litematica UI style (side-by-side browser list, detailed metadata panel on the right, selection highlights).
+### Server Schematics Browser
+Open the main Litematica menu (default hotkey `M`). A **"Server Schematics"** button is added right below the Configuration button.
+* **Directory Navigation**: Browse folders and subdirectories on the server with entry counts and navigation.
+* **Detailed Info Box**: Inspect the schematic author, creation date, volume, total block count, enclosing dimensions, schema data version, and whether the file is cached locally.
+* **Material List**: Direct button to inspect the material list without having to place the schematic in the world.
 
-- **📑 Rich Schematic Metadata**:
-  - Shows Author, Date Created, Region count, Total volume, Total blocks, Enclosing bounding box, Minecraft schema version, File size, and Local Cache status.
+### Placement Synchronization
+* **Like Player ("Как у игрока")**: If another player has placed a server schematic in the world, you can click the placement button to automatically load and place it with the exact coordinates, rotation, and mirror orientation used by that player. A cycle button (`↺`) is provided when multiple placements are available.
+* **Persistent Placements**: Active placements are stored on the server (`config/schematic-synchronizer/placements.json`) and persist across player reconnections and server restarts.
 
-- **👥 Multi-Player Placement Synchronization**:
-  - Automatically synchronizes schematic placements across players on the server.
-  - **"Like Player" ("Как у игрока")** button: load and place the schematic at the exact position, rotation, and mirror orientation as another player (with a cycle button `↺` if multiple placements exist).
-  - Placements persist on the server across player disconnections and server restarts (`config/schematic-synchronizer/placements.json`).
+### Server Setup
+Place your `.litematic` or `.schem` files into the `schematics/` folder in your server directory. Clients connecting to the server will automatically receive the catalog.
 
-- **📦 Instant Material List**:
-  - View the required materials list directly for any server schematic before placing it.
+Compiling
+=========
+* Clone the repository:
+  `git clone https://github.com/xiader-45/Schematic-Synchronizer.git`
+* Open a command prompt or terminal in the repository directory
+* Run `gradlew build` (or `./gradlew build` on Linux/macOS)
+* The built jar file will be located in `build/libs/`
 
-- **⚡ Fast Chunked Streaming & Local Cache**:
-  - Schematics placed in the server's `schematics/` folder are transferred to clients in chunks over custom network packets and cached locally (`schematics/.server_cache/`).
-
-- **🌍 Localization**:
-  - Full translations for **English**, **Русский**, and **Українська**, seamlessly utilizing standard Litematica/MaLiLib localization keys.
-
----
-
-## 🛠 Installation & Requirements
-
-1. Install **Fabric Loader** (0.16.10+ / Minecraft 1.21.4).
-2. Install dependencies:
-   - [Fabric API](https://modrinth.com/mod/fabric-api)
-   - [MaLiLib](https://github.com/sakura-ryoko/malilib) (26.2 / 0.29.4+)
-   - [Litematica](https://github.com/sakura-ryoko/litematica) (26.2 / 0.28.5+)
-3. Place `schematic-synchronizer` jar file into both the server and client `mods/` folder.
-4. Put your `.litematic` or `.schem` files into the `schematics/` directory on your server.
-
----
-
-## 🏗 Building from Source
-
-```bash
-git clone https://github.com/xiader-45/Schematic-Synchronizer.git
-cd Schematic-Synchronizer
-./gradlew build
-```
-The compiled jar will be available in `build/libs/`.
+Credits
+=======
+* [masa](https://github.com/maruohon) for the original Litematica and MaLiLib
+* [sakura-ryoko](https://github.com/sakura-ryoko) for modern ports of the Masa ecosystem
