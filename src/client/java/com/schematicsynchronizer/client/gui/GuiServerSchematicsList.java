@@ -24,6 +24,7 @@ import java.util.List;
 
 public class GuiServerSchematicsList extends GuiListBase<ServerBrowserEntry, WidgetServerBrowserEntry, WidgetListServerBrowser> {
     private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    private long lastAutoRefreshTime = 0;
 
     public GuiServerSchematicsList(Screen parent) {
         super(10, 26);
@@ -47,6 +48,7 @@ public class GuiServerSchematicsList extends GuiListBase<ServerBrowserEntry, Wid
         });
         this.addWidget(checkBox);
 
+        this.lastAutoRefreshTime = System.currentTimeMillis();
         this.reCreateButtons();
 
         // Automatically scan and request fresh catalog from server on each GUI open
@@ -105,13 +107,7 @@ public class GuiServerSchematicsList extends GuiListBase<ServerBrowserEntry, Wid
         });
         x += matW + 4;
 
-        // Button 4: "Обновить" (litematica.gui.button.material_list.refresh_list)
-        String refLabel = StringUtils.translate("litematica.gui.button.material_list.refresh_list");
-        int refW = this.getStringWidth(refLabel) + 16;
-        ButtonGeneric btnRef = new ButtonGeneric(x, y, refW, 20, refLabel);
-        addButton(btnRef, (btn, mouse) -> ClientSchematicManager.getInstance().requestRefresh());
-
-        // Button 5: "Главное меню" (litematica.gui.button.change_menu.to_main_menu, Right aligned)
+        // Button 4: "Главное меню" (litematica.gui.button.change_menu.to_main_menu, Right aligned)
         String mmLabel = StringUtils.translate("litematica.gui.button.change_menu.to_main_menu");
         int mmW = this.getStringWidth(mmLabel) + 20;
         int mmX = this.width - mmW - 10;
@@ -135,6 +131,11 @@ public class GuiServerSchematicsList extends GuiListBase<ServerBrowserEntry, Wid
 
     @Override
     public void drawContents(GuiContext ctx, int mouseX, int mouseY, float partialTicks) {
+        long now = System.currentTimeMillis();
+        if (now - this.lastAutoRefreshTime >= 1000L) {
+            this.lastAutoRefreshTime = now;
+            ClientSchematicManager.getInstance().requestRefresh();
+        }
         super.drawContents(ctx, mouseX, mouseY, partialTicks);
         drawSelectedEntryInfo(ctx, mouseX, mouseY);
     }

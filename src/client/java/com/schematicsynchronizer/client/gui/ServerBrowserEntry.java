@@ -6,6 +6,7 @@ import fi.dy.masa.litematica.gui.Icons;
 import fi.dy.masa.malilib.gui.interfaces.IGuiIcon;
 
 import java.util.List;
+import java.util.Objects;
 
 public class ServerBrowserEntry {
     public enum EntryType {
@@ -98,5 +99,18 @@ public class ServerBrowserEntry {
             }
         }
         return Icons.FILE_ICON_LITEMATIC;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ServerBrowserEntry that = (ServerBrowserEntry) o;
+        return type == that.type && Objects.equals(fullPath, that.fullPath);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(type, fullPath);
     }
 }

@@ -86,6 +86,28 @@ public class WidgetListServerBrowser extends WidgetListBase<ServerBrowserEntry, 
     }
 
     @Override
+    public void refreshEntries() {
+        ServerBrowserEntry prevSelected = this.getLastSelectedEntry();
+        super.refreshEntries();
+        if (prevSelected != null) {
+            boolean found = false;
+            int idx = 0;
+            for (ServerBrowserEntry entry : this.listContents) {
+                if (entry.equals(prevSelected)) {
+                    this.setLastSelectedEntry(entry, idx);
+                    found = true;
+                    break;
+                }
+                idx++;
+            }
+            if (!found) {
+                this.clearSelection();
+                this.parent.onSelectionChange(null);
+            }
+        }
+    }
+
+    @Override
     protected List<String> getEntryStringsForFilter(ServerBrowserEntry entry) {
         if (entry.getSchematicInfo() != null) {
             return ImmutableList.of(entry.getName().toLowerCase(), entry.getFullPath().toLowerCase());
