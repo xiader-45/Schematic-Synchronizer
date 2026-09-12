@@ -23,6 +23,7 @@ public class WidgetListUploadBrowser extends WidgetListBase<LocalFileEntry, Widg
     private Path currentDirectory;
     private final Set<LocalFileEntry> multiSelected = new LinkedHashSet<>();
     private final List<LocalFileEntry> rawEntries = new ArrayList<>();
+    private LocalFileEntry selectionAnchor = null;
 
     public WidgetListUploadBrowser(int x, int y, int width, int height, GuiUploadSchematicsList parent) {
         super(x, y, width, height, null);
@@ -62,22 +63,50 @@ public class WidgetListUploadBrowser extends WidgetListBase<LocalFileEntry, Widg
         return this.multiSelected.contains(entry);
     }
 
-    public void handleEntrySelection(LocalFileEntry entry, boolean isMulti) {
-        if (entry.isUp()) {
+    public void handleEntrySelection(LocalFileEntry entry, boolean isShift, boolean isCtrl) {
+        if (entry == null || entry.isUp()) {
             this.multiSelected.clear();
+            this.selectionAnchor = null;
             this.parent.onSelectionChanged();
             return;
         }
 
-        if (isMulti) {
+        if (isShift) {
+            int anchorIdx = (this.selectionAnchor != null) ? this.listContents.indexOf(this.selectionAnchor) : -1;
+            int targetIdx = this.listContents.indexOf(entry);
+
+            if (anchorIdx != -1 && targetIdx != -1) {
+                int start = Math.min(anchorIdx, targetIdx);
+                int end = Math.max(anchorIdx, targetIdx);
+
+                if (!isCtrl) {
+                    this.multiSelected.clear();
+                }
+
+                for (int i = start; i <= end; i++) {
+                    LocalFileEntry item = this.listContents.get(i);
+                    if (!item.isUp()) {
+                        this.multiSelected.add(item);
+                    }
+                }
+            } else {
+                if (!isCtrl) {
+                    this.multiSelected.clear();
+                }
+                this.multiSelected.add(entry);
+                this.selectionAnchor = entry;
+            }
+        } else if (isCtrl) {
             if (this.multiSelected.contains(entry)) {
                 this.multiSelected.remove(entry);
             } else {
                 this.multiSelected.add(entry);
             }
+            this.selectionAnchor = entry;
         } else {
             this.multiSelected.clear();
             this.multiSelected.add(entry);
+            this.selectionAnchor = entry;
         }
 
         this.parent.onSelectionChanged();
@@ -85,6 +114,7 @@ public class WidgetListUploadBrowser extends WidgetListBase<LocalFileEntry, Widg
 
     public void clearSelection() {
         this.multiSelected.clear();
+        this.selectionAnchor = null;
         this.parent.onSelectionChanged();
     }
 
@@ -185,6 +215,10 @@ public class WidgetListUploadBrowser extends WidgetListBase<LocalFileEntry, Widg
             if (search.isEmpty() || entry.getName().toLowerCase(Locale.ROOT).contains(search)) {
                 this.listContents.add(entry);
             }
+        }
+
+        if (this.selectionAnchor != null && !this.listContents.contains(this.selectionAnchor)) {
+            this.selectionAnchor = null;
         }
 
         reCreateListEntryWidgets();

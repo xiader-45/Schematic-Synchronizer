@@ -97,7 +97,7 @@ public class WidgetUploadBrowserEntry extends WidgetListEntryBase<LocalFileEntry
                 lastClickedEntry = this.entry;
                 boolean shift = GuiBase.isShiftDown();
                 boolean ctrl = GuiBase.isCtrlDown();
-                this.parentList.handleEntrySelection(this.entry, shift || ctrl);
+                this.parentList.handleEntrySelection(this.entry, shift, ctrl);
                 return true;
             }
         }
@@ -107,7 +107,7 @@ public class WidgetUploadBrowserEntry extends WidgetListEntryBase<LocalFileEntry
         lastClickedEntry = this.entry;
         boolean shift = GuiBase.isShiftDown();
         boolean ctrl = GuiBase.isCtrlDown();
-        this.parentList.handleEntrySelection(this.entry, shift || ctrl);
+        this.parentList.handleEntrySelection(this.entry, shift, ctrl);
         return true;
     }
 }

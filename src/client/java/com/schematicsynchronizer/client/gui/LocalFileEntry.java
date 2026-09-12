@@ -5,6 +5,7 @@ import com.schematicsynchronizer.server.ServerSchematicManager;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
+import java.util.Objects;
 
 public class LocalFileEntry {
     public enum EntryType {
@@ -97,5 +98,18 @@ public class LocalFileEntry {
         if (size < 1024) return size + " B";
         if (size < 1024 * 1024) return String.format(Locale.ROOT, "%.1f KB", size / 1024.0);
         return String.format(Locale.ROOT, "%.2f MB", size / (1024.0 * 1024.0));
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        LocalFileEntry that = (LocalFileEntry) o;
+        return type == that.type && Objects.equals(path, that.path);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(type, path);
     }
 }
