@@ -1,6 +1,7 @@
 package com.schematicsynchronizer.client.gui;
 
 import com.google.common.collect.ImmutableList;
+import com.schematicsynchronizer.SchematicSynchronizer;
 import com.schematicsynchronizer.client.ClientSchematicManager;
 import com.schematicsynchronizer.data.PlayerPlacementInfo;
 import com.schematicsynchronizer.data.ServerSchematicInfo;
@@ -15,6 +16,8 @@ import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.Util;
 
 import java.nio.file.Files;
@@ -22,6 +25,8 @@ import java.nio.file.Path;
 import java.util.*;
 
 public class WidgetListServerBrowser extends WidgetListBase<ServerBrowserEntry, WidgetServerBrowserEntry> {
+    private static final Identifier ICON_UPLOAD = SchematicSynchronizer.id("textures/gui/upload.png");
+
     private final GuiServerSchematicsList parent;
     private String currentPath = "";
 
@@ -303,7 +308,7 @@ public class WidgetListServerBrowser extends WidgetListBase<ServerBrowserEntry, 
         Icons.FILE_ICON_DIR_UP.renderAt(ctx, upX + 1, iconY + 1, 0, !this.currentPath.isEmpty(), false);
         Icons.FILE_ICON_CREATE_DIR.renderAt(ctx, createDirX + 1, iconY + 1, 0, true, false);
         Icons.FILE_ICON_DIR.renderAt(ctx, openDirX + 1, iconY + 1, 0, true, false);
-        Icons.ARROW_UP.renderAt(ctx, uploadX + 1, iconY + 1, 0, true, false);
+        ctx.blit(RenderPipelines.GUI_TEXTURED, ICON_UPLOAD, uploadX + 3, iconY + 3, 0.0f, 0.0f, 9, 9, 9, 9);
 
         // Current path bar
         if (pathW > 20) {
