@@ -2,13 +2,19 @@ package com.schematicsynchronizer.client.gui;
 
 import com.schematicsynchronizer.data.PlayerPlacementInfo;
 import fi.dy.masa.litematica.gui.Icons;
+import fi.dy.masa.malilib.gui.LeftRight;
 import fi.dy.masa.malilib.gui.interfaces.IGuiIcon;
 import fi.dy.masa.malilib.gui.widgets.WidgetListEntryBase;
 import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.render.RenderUtils;
+import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.client.input.MouseButtonEvent;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
 public class WidgetServerPlacementEntry extends WidgetListEntryBase<PlayerPlacementInfo> {
+    public static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm");
     private final boolean isOdd;
     private final WidgetListServerPlacements parentList;
 
@@ -67,11 +73,10 @@ public class WidgetServerPlacementEntry extends WidgetListEntryBase<PlayerPlacem
             }
 
             String mainText = schemName + " §7(§b" + this.entry.getOwnerName() + "§7)";
-            this.drawString(ctx, textX, textY, 0xFFFFFFFF, mainText);
 
             int rightX = this.x + this.width - 6;
 
-            // Rotation
+            // 1. Rotation (rightmost)
             String rot = this.entry.getRotation();
             if (rot != null && !rot.equals("NONE")) {
                 int rw = this.getStringWidth(rot);
@@ -80,14 +85,14 @@ public class WidgetServerPlacementEntry extends WidgetListEntryBase<PlayerPlacem
                 rightX -= 6;
             }
 
-            // Coordinates
+            // 2. Coordinates
             String posStr = this.entry.getPos().toShortString();
             int pw = this.getStringWidth(posStr);
             rightX -= pw;
             this.drawString(ctx, rightX, textY, 0xFFAAAAAA, posStr);
             rightX -= 6;
 
-            // Dimension
+            // 3. Dimension
             String dim = this.entry.getDimension();
             if (dim.contains(":")) {
                 dim = dim.substring(dim.indexOf(':') + 1);
@@ -95,6 +100,22 @@ public class WidgetServerPlacementEntry extends WidgetListEntryBase<PlayerPlacem
             int dw = this.getStringWidth(dim);
             rightX -= dw;
             this.drawString(ctx, rightX, textY, 0xFF55FF55, dim);
+
+            // 4. Date & Time (to the left of dimension)
+            if (this.entry.getTimestamp() > 0) {
+                rightX -= 6;
+                String timeStr = DATE_FORMAT.format(new Date(this.entry.getTimestamp()));
+                int tw = this.getStringWidth(timeStr);
+                rightX -= tw;
+                this.drawString(ctx, rightX, textY, 0xFF888888, timeStr);
+            }
+
+            // Draw main text clamped if needed to avoid overlapping rightX
+            int maxMainWidth = rightX - textX - 6;
+            if (maxMainWidth > 20) {
+                mainText = StringUtils.clampTextToRenderLength(mainText, maxMainWidth, LeftRight.RIGHT, "...");
+            }
+            this.drawString(ctx, textX, textY, 0xFFFFFFFF, mainText);
         }
 
         super.render(ctx, mouseX, mouseY, selected);
