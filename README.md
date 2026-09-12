@@ -1,6 +1,6 @@
 Schematic Synchronizer
 ====================
-Schematic Synchronizer is a client-and-server Fabric mod for Minecraft 1.21.4 that integrates directly into [Litematica](https://github.com/sakura-ryoko/litematica).
+Schematic Synchronizer is a client-and-server Fabric mod for Minecraft 26.2 that integrates directly into [Litematica](https://github.com/sakura-ryoko/litematica).
 It allows server administrators and players to host schematics on the server side, browse them via a dedicated Litematica menu, download them on demand, and synchronize placements between players in real time.
 
 Requirements
