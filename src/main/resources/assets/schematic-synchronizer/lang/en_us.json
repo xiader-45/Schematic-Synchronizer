@@ -92,5 +92,20 @@
   "schematic_synchronizer.gui.owner_leave.transfer_random": "Leave & Transfer Random",
   "schematic_synchronizer.gui.button.delete_group_op": "Delete (OP)",
   "schematic_synchronizer.gui.manage_group.take_ownership_op": "Take Ownership (OP)",
-  "schematic_synchronizer.gui.manage_group.delete_group": "Delete Group"
+  "schematic_synchronizer.gui.manage_group.delete_group": "Delete Group",
+  "schematic_synchronizer.gui.button.groups_list_count": "Group List (%d)",
+  "schematic_synchronizer.gui.create_group.default_name": "Group %d",
+  "schematic_synchronizer.gui.manage_group.tab_placements": "Placements (%d)",
+  "schematic_synchronizer.gui.manage_group.tab_members": "Members (%d)",
+  "schematic_synchronizer.gui.manage_group.add_placement": "+ Add Placement",
+  "schematic_synchronizer.gui.manage_group.remove_placement": "Remove",
+  "schematic_synchronizer.gui.manage_group.no_placements": "No placements in this group yet. Click '+ Add Placement'.",
+  "schematic_synchronizer.gui.group.placements_count": "%d placem.",
+  "schematic_synchronizer.gui.group.members_count": "%d memb.",
+  "schematic_synchronizer.gui.group.owner_prefix": "Owner: %s",
+  "schematic_synchronizer.gui.add_placements.title": "Add Placements to Group: %s",
+  "schematic_synchronizer.gui.add_placements.add_selected": "Add Selected (%d)",
+  "schematic_synchronizer.gui.add_placements.select_all": "Select All",
+  "schematic_synchronizer.gui.add_placements.deselect_all": "Deselect All",
+  "schematic_synchronizer.gui.add_placements.already_in_group": "Already in group"
 }

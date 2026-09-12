@@ -5,7 +5,10 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.schematicsynchronizer.data.HologramGroupData;
+import com.schematicsynchronizer.network.AddGroupPlacementsPayload;
+import com.schematicsynchronizer.network.RemoveGroupPlacementPayload;
 import com.schematicsynchronizer.network.CreateHologramGroupPayload;
+import com.schematicsynchronizer.data.GroupPlacementData;
 import com.schematicsynchronizer.network.LeaveHologramGroupPayload;
 import com.schematicsynchronizer.network.SyncHologramGroupsPayload;
 import com.schematicsynchronizer.network.UpdateHologramPlacementPayload;
@@ -160,21 +163,41 @@ public class ServerHologramGroupManager {
         HologramGroupData group = new HologramGroupData(
                 id,
                 name,
-                payload.schematicId(),
                 dimension,
                 player.getUUID(),
                 player.getName().getString(),
                 Collections.singletonMap(player.getUUID(), player.getName().getString()),
-                payload.origin(),
-                payload.rotation(),
-                payload.mirror(),
-                false,
+                payload.initialPlacements(),
                 System.currentTimeMillis()
         );
 
         groupsByDimension.computeIfAbsent(dimension, k -> new ConcurrentHashMap<>()).put(group.getId(), group);
         saveGroup(server, group);
         broadcastGroups(server, dimension);
+    }
+
+    public void addPlacements(MinecraftServer server, ServerPlayer player, AddGroupPlacementsPayload payload) {
+        HologramGroupData group = findGroupById(payload.groupId());
+        if (group == null) return;
+        if (!canPlayerManageGroup(server, player, group)) return;
+
+        if (payload.placements() != null) {
+            for (GroupPlacementData p : payload.placements()) {
+                group.addPlacement(p);
+            }
+            saveGroup(server, group);
+            broadcastGroups(server, group.getDimension());
+        }
+    }
+
+    public void removePlacement(MinecraftServer server, ServerPlayer player, RemoveGroupPlacementPayload payload) {
+        HologramGroupData group = findGroupById(payload.groupId());
+        if (group == null) return;
+        if (!canPlayerManageGroup(server, player, group)) return;
+
+        group.removePlacement(payload.placementId());
+        saveGroup(server, group);
+        broadcastGroups(server, group.getDimension());
     }
 
     public void joinGroup(MinecraftServer server, ServerPlayer player, String groupId) {
@@ -306,11 +329,21 @@ public class ServerHologramGroupManager {
             return;
         }
 
-        group.setOrigin(payload.origin());
-        group.setRotation(payload.rotation());
-        group.setMirror(payload.mirror());
-        group.setLocked(payload.locked());
+        GroupPlacementData placement = group.getPlacement(payload.placementId());
+        if (placement != null) {
+            placement.setOrigin(payload.origin());
+            placement.setRotation(payload.rotation());
+            placement.setMirror(payload.mirror());
+            placement.setLocked(payload.locked());
+        } else if (!group.getPlacements().isEmpty()) {
+            GroupPlacementData first = group.getPlacements().get(0);
+            first.setOrigin(payload.origin());
+            first.setRotation(payload.rotation());
+            first.setMirror(payload.mirror());
+            first.setLocked(payload.locked());
+        }
 
+        group.setLastModified(System.currentTimeMillis());
         saveGroup(server, group);
         broadcastGroups(server, group.getDimension());
     }

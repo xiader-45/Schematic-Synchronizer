@@ -92,5 +92,20 @@
   "schematic_synchronizer.gui.owner_leave.transfer_random": "Выйти и передать права",
   "schematic_synchronizer.gui.button.delete_group_op": "Удалить (OP)",
   "schematic_synchronizer.gui.manage_group.take_ownership_op": "Забрать права себе (OP)",
-  "schematic_synchronizer.gui.manage_group.delete_group": "Удалить группу"
+  "schematic_synchronizer.gui.manage_group.delete_group": "Удалить группу",
+  "schematic_synchronizer.gui.button.groups_list_count": "Список групп (%d)",
+  "schematic_synchronizer.gui.create_group.default_name": "Группа %d",
+  "schematic_synchronizer.gui.manage_group.tab_placements": "Размещения (%d)",
+  "schematic_synchronizer.gui.manage_group.tab_members": "Участники (%d)",
+  "schematic_synchronizer.gui.manage_group.add_placement": "+ Добавить размещение",
+  "schematic_synchronizer.gui.manage_group.remove_placement": "Удалить",
+  "schematic_synchronizer.gui.manage_group.no_placements": "В этой группе пока нет размещений. Нажмите «+ Добавить размещение».",
+  "schematic_synchronizer.gui.group.placements_count": "%d разм.",
+  "schematic_synchronizer.gui.group.members_count": "%d уч.",
+  "schematic_synchronizer.gui.group.owner_prefix": "Владелец: %s",
+  "schematic_synchronizer.gui.add_placements.title": "Добавить размещения в группу: %s",
+  "schematic_synchronizer.gui.add_placements.add_selected": "Добавить выбранные (%d)",
+  "schematic_synchronizer.gui.add_placements.select_all": "Выбрать все",
+  "schematic_synchronizer.gui.add_placements.deselect_all": "Снять выбор",
+  "schematic_synchronizer.gui.add_placements.already_in_group": "Уже в группе"
 }

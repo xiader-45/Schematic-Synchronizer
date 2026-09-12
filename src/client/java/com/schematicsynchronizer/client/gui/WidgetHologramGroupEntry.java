@@ -65,22 +65,25 @@ public class WidgetHologramGroupEntry extends WidgetListEntryBase<HologramGroupD
             boolean isOwner = (myUuid != null && this.entry.isOwner(myUuid));
             boolean isMember = (myUuid != null && this.entry.isMember(myUuid));
 
-            String titleColor = isOwner ? "\u00a76\u00a7l" : (isMember ? "\u00a7a\u00a7l" : "\u00a7f\u00a7l");
+            String titleColor = isOwner ? "§6§l" : (isMember ? "§a§l" : "§f§l");
             String groupName = titleColor + this.entry.getName();
 
             String statusTag = "";
             if (isOwner) {
-                statusTag = " \u00a76[" + StringUtils.translate("schematic_synchronizer.gui.group.status.owner") + "]";
+                statusTag = " §6[" + StringUtils.translate("schematic_synchronizer.gui.group.status.owner") + "]";
             } else if (isMember) {
-                statusTag = " \u00a7a[" + StringUtils.translate("schematic_synchronizer.gui.group.status.member") + "]";
+                statusTag = " §a[" + StringUtils.translate("schematic_synchronizer.gui.group.status.member") + "]";
             }
 
             int nameColor = selected ? 0xFFFFFFFF : (isOwner ? 0xFFFFAA00 : (isMember ? 0xFF55FF55 : 0xFFFFFFFF));
             this.drawString(ctx, textX, textY, nameColor, groupName + statusTag);
 
             int subColor = selected ? 0xFFFFFFFF : 0xFFAAAAAA;
-            String subText = "\u00a77" + this.entry.getSchematicId() + " \u00a78| \u00a77" +
-                    this.entry.getOwnerName() + " (" + this.entry.getMembers().size() + ")";
+            int pCount = this.entry.getPlacements().size();
+            int mCount = this.entry.getMembers().size();
+            String subText = "§7" + StringUtils.translate("schematic_synchronizer.gui.group.placements_count", pCount) +
+                    " §8| §7" + StringUtils.translate("schematic_synchronizer.gui.group.members_count", mCount) +
+                    " §8| §7" + StringUtils.translate("schematic_synchronizer.gui.group.owner_prefix", this.entry.getOwnerName());
             this.drawString(ctx, textX, textY + 11, subColor, subText);
         }
     }

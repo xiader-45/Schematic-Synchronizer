@@ -109,7 +109,7 @@ public class GuiHologramGroups extends GuiListBase<HologramGroupData, WidgetHolo
         int createW = this.getStringWidth(createLabel) + 16;
         ButtonGeneric btnCreate = new ButtonGeneric(x, y, createW, 20, createLabel);
         addButton(btnCreate, (btn, mouse) -> {
-            GuiBase.openGui(new GuiCreateHologramGroup(this, null, null));
+            GuiBase.openGui(new GuiCreateHologramGroup(this, null));
         });
         x += createW + 4;
 

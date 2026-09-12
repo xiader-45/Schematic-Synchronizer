@@ -87,15 +87,15 @@ public class GuiServerSchematicsList extends GuiListBase<ServerBrowserEntry, Wid
         });
         x += loadW + 4;
 
-        // Button 2: "Список размещений" (always opens all server placements, with total count in parentheses)
-        int totalPlacements = ClientSchematicManager.getInstance().getAllPlacements().size();
-        String placeLabel = StringUtils.translate("schematic_synchronizer.gui.button.placement_list_count", totalPlacements);
-        int placeW = this.getStringWidth(placeLabel) + 16;
-        ButtonGeneric btnPlacements = new ButtonGeneric(x, y, placeW, 20, placeLabel);
-        addButton(btnPlacements, (btn, mouse) -> {
-            GuiBase.openGui(new GuiServerPlacementsList(this, null));
+        // Button 2: "Список групп"
+        int totalGroups = ClientHologramGroupManager.getInstance().getGroups().size();
+        String groupLabel = StringUtils.translate("schematic_synchronizer.gui.button.groups_list_count", totalGroups);
+        int grpW = this.getStringWidth(groupLabel) + 16;
+        ButtonGeneric btnGroups = new ButtonGeneric(x, y, grpW, 20, groupLabel);
+        addButton(btnGroups, (btn, mouse) -> {
+            GuiBase.openGui(new GuiHologramGroups(this));
         });
-        x += placeW + 4;
+        x += grpW + 4;
 
         // Button 3: "Список материалов" (litematica.gui.button.material_list)
         String matLabel = StringUtils.translate("litematica.gui.button.material_list");
@@ -108,16 +108,6 @@ public class GuiServerSchematicsList extends GuiListBase<ServerBrowserEntry, Wid
             }
         });
         x += matW + 4;
-
-        // Button 4: "Группы"
-        int totalGroups = ClientHologramGroupManager.getInstance().getGroups().size();
-        String groupLabel = StringUtils.translate("schematic_synchronizer.gui.button.groups_count", totalGroups);
-        int grpW = this.getStringWidth(groupLabel) + 16;
-        ButtonGeneric btnGroups = new ButtonGeneric(x, y, grpW, 20, groupLabel);
-        addButton(btnGroups, (btn, mouse) -> {
-            GuiBase.openGui(new GuiHologramGroups(this));
-        });
-        x += grpW + 4;
 
         // Button 4: "Главное меню" (litematica.gui.button.change_menu.to_main_menu, Right aligned)
         String mmLabel = StringUtils.translate("litematica.gui.button.change_menu.to_main_menu");

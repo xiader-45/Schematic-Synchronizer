@@ -11,43 +11,46 @@ import java.util.*;
 public class HologramGroupData {
     private final String id;
     private String name;
-    private final String schematicId;
     private final String dimension;
     private UUID ownerUuid;
     private String ownerName;
     private final Map<UUID, String> members = new LinkedHashMap<>();
-    private BlockPos origin;
-    private String rotation;
-    private String mirror;
-    private boolean locked;
+    private final List<GroupPlacementData> placements = new ArrayList<>();
     private long lastModified;
 
-    public HologramGroupData(String id, String name, String schematicId, String dimension,
+    public HologramGroupData(String id, String name, String dimension,
                              UUID ownerUuid, String ownerName, Map<UUID, String> members,
-                             BlockPos origin, String rotation, String mirror, boolean locked, long lastModified) {
+                             List<GroupPlacementData> placements, long lastModified) {
         this.id = id;
-        this.name = name;
-        this.schematicId = schematicId;
-        this.dimension = dimension;
+        this.name = (name != null && !name.trim().isEmpty()) ? name.trim() : "Group " + id;
+        this.dimension = dimension != null ? dimension : "minecraft:overworld";
         this.ownerUuid = ownerUuid;
-        this.ownerName = ownerName;
+        this.ownerName = ownerName != null ? ownerName : "Player";
         if (members != null) {
             this.members.putAll(members);
         }
         if (ownerUuid != null && ownerName != null) {
             this.members.put(ownerUuid, ownerName);
         }
-        this.origin = origin != null ? origin : BlockPos.ZERO;
-        this.rotation = rotation != null ? rotation : "NONE";
-        this.mirror = mirror != null ? mirror : "NONE";
-        this.locked = locked;
+        if (placements != null) {
+            this.placements.addAll(placements);
+        }
         this.lastModified = lastModified > 0 ? lastModified : System.currentTimeMillis();
+    }
+
+    // Legacy compatibility constructor
+    public HologramGroupData(String id, String name, String schematicId, String dimension,
+                             UUID ownerUuid, String ownerName, Map<UUID, String> members,
+                             BlockPos origin, String rotation, String mirror, boolean locked, long lastModified) {
+        this(id, name, dimension, ownerUuid, ownerName, members, null, lastModified);
+        if (schematicId != null && !schematicId.isEmpty()) {
+            this.placements.add(new GroupPlacementData(id + "_p0", name, schematicId, origin, rotation, mirror, locked));
+        }
     }
 
     public static HologramGroupData read(RegistryFriendlyByteBuf buf) {
         String id = buf.readUtf();
         String name = buf.readUtf();
-        String schematicId = buf.readUtf();
         String dimension = buf.readUtf();
         UUID ownerUuid = buf.readUUID();
         String ownerName = buf.readUtf();
@@ -60,20 +63,20 @@ public class HologramGroupData {
             members.put(u, n);
         }
 
-        BlockPos origin = buf.readBlockPos();
-        String rotation = buf.readUtf();
-        String mirror = buf.readUtf();
-        boolean locked = buf.readBoolean();
+        int placementCount = buf.readVarInt();
+        List<GroupPlacementData> placements = new ArrayList<>(placementCount);
+        for (int i = 0; i < placementCount; i++) {
+            placements.add(GroupPlacementData.read(buf));
+        }
+
         long lastModified = buf.readLong();
 
-        return new HologramGroupData(id, name, schematicId, dimension, ownerUuid, ownerName, members,
-                origin, rotation, mirror, locked, lastModified);
+        return new HologramGroupData(id, name, dimension, ownerUuid, ownerName, members, placements, lastModified);
     }
 
     public void write(RegistryFriendlyByteBuf buf) {
         buf.writeUtf(id);
         buf.writeUtf(name);
-        buf.writeUtf(schematicId);
         buf.writeUtf(dimension);
         buf.writeUUID(ownerUuid);
         buf.writeUtf(ownerName);
@@ -84,10 +87,11 @@ public class HologramGroupData {
             buf.writeUtf(entry.getValue());
         }
 
-        buf.writeBlockPos(origin);
-        buf.writeUtf(rotation);
-        buf.writeUtf(mirror);
-        buf.writeBoolean(locked);
+        buf.writeVarInt(placements.size());
+        for (GroupPlacementData p : placements) {
+            p.write(buf);
+        }
+
         buf.writeLong(lastModified);
     }
 
@@ -95,7 +99,6 @@ public class HologramGroupData {
         JsonObject obj = new JsonObject();
         obj.addProperty("id", id);
         obj.addProperty("name", name);
-        obj.addProperty("schematicId", schematicId);
         obj.addProperty("dimension", dimension);
         obj.addProperty("ownerUuid", ownerUuid.toString());
         obj.addProperty("ownerName", ownerName);
@@ -109,15 +112,12 @@ public class HologramGroupData {
         }
         obj.add("members", membersArr);
 
-        JsonObject posObj = new JsonObject();
-        posObj.addProperty("x", origin.getX());
-        posObj.addProperty("y", origin.getY());
-        posObj.addProperty("z", origin.getZ());
-        obj.add("origin", posObj);
+        JsonArray placementsArr = new JsonArray();
+        for (GroupPlacementData p : placements) {
+            placementsArr.add(p.toJson());
+        }
+        obj.add("placements", placementsArr);
 
-        obj.addProperty("rotation", rotation);
-        obj.addProperty("mirror", mirror);
-        obj.addProperty("locked", locked);
         obj.addProperty("lastModified", lastModified);
         return obj;
     }
@@ -125,7 +125,6 @@ public class HologramGroupData {
     public static HologramGroupData fromJson(JsonObject obj) {
         String id = obj.get("id").getAsString();
         String name = obj.has("name") ? obj.get("name").getAsString() : id;
-        String schematicId = obj.get("schematicId").getAsString();
         String dimension = obj.has("dimension") ? obj.get("dimension").getAsString() : "minecraft:overworld";
         UUID ownerUuid = UUID.fromString(obj.get("ownerUuid").getAsString());
         String ownerName = obj.has("ownerName") ? obj.get("ownerName").getAsString() : "Unknown";
@@ -145,19 +144,33 @@ public class HologramGroupData {
             }
         }
 
-        BlockPos origin = BlockPos.ZERO;
-        if (obj.has("origin") && obj.get("origin").isJsonObject()) {
-            JsonObject p = obj.getAsJsonObject("origin");
-            origin = new BlockPos(p.get("x").getAsInt(), p.get("y").getAsInt(), p.get("z").getAsInt());
+        List<GroupPlacementData> placements = new ArrayList<>();
+        if (obj.has("placements") && obj.get("placements").isJsonArray()) {
+            for (JsonElement el : obj.getAsJsonArray("placements")) {
+                if (el.isJsonObject()) {
+                    try {
+                        placements.add(GroupPlacementData.fromJson(el.getAsJsonObject()));
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        } else if (obj.has("schematicId")) {
+            // Legacy format fallback
+            String schematicId = obj.get("schematicId").getAsString();
+            BlockPos origin = BlockPos.ZERO;
+            if (obj.has("origin") && obj.get("origin").isJsonObject()) {
+                JsonObject p = obj.getAsJsonObject("origin");
+                origin = new BlockPos(p.get("x").getAsInt(), p.get("y").getAsInt(), p.get("z").getAsInt());
+            }
+            String rotation = obj.has("rotation") ? obj.get("rotation").getAsString() : "NONE";
+            String mirror = obj.has("mirror") ? obj.get("mirror").getAsString() : "NONE";
+            boolean locked = obj.has("locked") && obj.get("locked").getAsBoolean();
+            placements.add(new GroupPlacementData(id + "_p0", name, schematicId, origin, rotation, mirror, locked));
         }
 
-        String rotation = obj.has("rotation") ? obj.get("rotation").getAsString() : "NONE";
-        String mirror = obj.has("mirror") ? obj.get("mirror").getAsString() : "NONE";
-        boolean locked = obj.has("locked") && obj.get("locked").getAsBoolean();
         long lastModified = obj.has("lastModified") ? obj.get("lastModified").getAsLong() : System.currentTimeMillis();
 
-        return new HologramGroupData(id, name, schematicId, dimension, ownerUuid, ownerName, members,
-                origin, rotation, mirror, locked, lastModified);
+        return new HologramGroupData(id, name, dimension, ownerUuid, ownerName, members, placements, lastModified);
     }
 
     public String getId() {
@@ -170,10 +183,7 @@ public class HologramGroupData {
 
     public void setName(String name) {
         this.name = name;
-    }
-
-    public String getSchematicId() {
-        return schematicId;
+        this.lastModified = System.currentTimeMillis();
     }
 
     public String getDimension() {
@@ -184,6 +194,10 @@ public class HologramGroupData {
         return ownerUuid;
     }
 
+    public String getOwnerName() {
+        return ownerName;
+    }
+
     public void setOwner(UUID ownerUuid, String ownerName) {
         this.ownerUuid = ownerUuid;
         this.ownerName = ownerName;
@@ -191,20 +205,8 @@ public class HologramGroupData {
         this.lastModified = System.currentTimeMillis();
     }
 
-    public String getOwnerName() {
-        return ownerName;
-    }
-
     public Map<UUID, String> getMembers() {
-        return members;
-    }
-
-    public boolean isOwner(UUID uuid) {
-        return ownerUuid != null && ownerUuid.equals(uuid);
-    }
-
-    public boolean isMember(UUID uuid) {
-        return members.containsKey(uuid);
+        return Collections.unmodifiableMap(members);
     }
 
     public void addMember(UUID uuid, String name) {
@@ -217,40 +219,58 @@ public class HologramGroupData {
         this.lastModified = System.currentTimeMillis();
     }
 
-    public BlockPos getOrigin() {
-        return origin;
+    public boolean isOwner(UUID uuid) {
+        return this.ownerUuid != null && this.ownerUuid.equals(uuid);
     }
 
-    public void setOrigin(BlockPos origin) {
-        this.origin = origin;
+    public boolean isMember(UUID uuid) {
+        return this.members.containsKey(uuid);
+    }
+
+    public List<GroupPlacementData> getPlacements() {
+        return Collections.unmodifiableList(placements);
+    }
+
+    public void addPlacement(GroupPlacementData placement) {
+        if (placement == null) return;
+        this.placements.removeIf(p -> p.getId().equals(placement.getId()));
+        this.placements.add(placement);
         this.lastModified = System.currentTimeMillis();
+    }
+
+    public void removePlacement(String placementId) {
+        if (placementId == null) return;
+        this.placements.removeIf(p -> p.getId().equals(placementId));
+        this.lastModified = System.currentTimeMillis();
+    }
+
+    public GroupPlacementData getPlacement(String placementId) {
+        if (placementId == null) return null;
+        for (GroupPlacementData p : placements) {
+            if (p.getId().equals(placementId)) return p;
+        }
+        return null;
+    }
+
+    // Compatibility getters that return the first placement's values (or defaults)
+    public String getSchematicId() {
+        return !placements.isEmpty() ? placements.get(0).getSchematicId() : "";
+    }
+
+    public BlockPos getOrigin() {
+        return !placements.isEmpty() ? placements.get(0).getOrigin() : BlockPos.ZERO;
     }
 
     public String getRotation() {
-        return rotation;
-    }
-
-    public void setRotation(String rotation) {
-        this.rotation = rotation;
-        this.lastModified = System.currentTimeMillis();
+        return !placements.isEmpty() ? placements.get(0).getRotation() : "NONE";
     }
 
     public String getMirror() {
-        return mirror;
-    }
-
-    public void setMirror(String mirror) {
-        this.mirror = mirror;
-        this.lastModified = System.currentTimeMillis();
+        return !placements.isEmpty() ? placements.get(0).getMirror() : "NONE";
     }
 
     public boolean isLocked() {
-        return locked;
-    }
-
-    public void setLocked(boolean locked) {
-        this.locked = locked;
-        this.lastModified = System.currentTimeMillis();
+        return !placements.isEmpty() && placements.get(0).isLocked();
     }
 
     public long getLastModified() {

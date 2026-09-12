@@ -1,16 +1,16 @@
 package com.schematicsynchronizer.client;
 
+import com.schematicsynchronizer.data.GroupPlacementData;
 import com.schematicsynchronizer.data.HologramGroupData;
 import com.schematicsynchronizer.network.*;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacementManager;
-import fi.dy.masa.malilib.gui.interfaces.IMessageConsumer;
-import fi.dy.masa.malilib.interfaces.IStringConsumer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.Rotation;
 
@@ -18,32 +18,36 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import fi.dy.masa.malilib.interfaces.IStringConsumer;
+import fi.dy.masa.malilib.gui.interfaces.IMessageConsumer;
+import fi.dy.masa.malilib.gui.Message;
 
 public class ClientHologramGroupManager {
     private static final ClientHologramGroupManager INSTANCE = new ClientHologramGroupManager();
+
+    private final List<HologramGroupData> groups = new ArrayList<>();
+    private String currentDimension = "minecraft:overworld";
+    private boolean canOpManage = false;
+    private Runnable guiRefreshCallback;
+
+    public record GroupPlacementKey(String groupId, String placementId) {}
+
+    // Maps Litematica placement HashId <-> (groupId, placementId)
+    private final Map<UUID, GroupPlacementKey> placementToGroupKey = new ConcurrentHashMap<>();
+    private final Map<GroupPlacementKey, UUID> groupKeyToPlacementId = new ConcurrentHashMap<>();
+
     private static final IStringConsumer DUMMY_STR_CONSUMER = s -> {};
     private static final IMessageConsumer DUMMY_MSG_CONSUMER = new IMessageConsumer() {
         @Override
-        public void addMessage(fi.dy.masa.malilib.gui.Message.MessageType type, String msg, Object... args) {}
-
+        public void addMessage(Message.MessageType type, String messageKey, Object... args) {}
         @Override
-        public void addMessage(fi.dy.masa.malilib.gui.Message.MessageType type, int time, String msg, Object... args) {}
+        public void addMessage(Message.MessageType type, int displayTime, String messageKey, Object... args) {}
     };
 
-    private String currentDimension = "minecraft:overworld";
-    private boolean canOpManage = false;
-    private final List<HologramGroupData> groups = new ArrayList<>();
-    private final Map<UUID, String> placementToGroupId = new ConcurrentHashMap<>();
-    private final Map<String, UUID> groupToPlacementId = new ConcurrentHashMap<>();
-
-    private Runnable guiRefreshCallback = null;
+    private ClientHologramGroupManager() {}
 
     public static ClientHologramGroupManager getInstance() {
         return INSTANCE;
-    }
-
-    public void setGuiRefreshCallback(Runnable callback) {
-        this.guiRefreshCallback = callback;
     }
 
     public List<HologramGroupData> getGroups() {
@@ -54,8 +58,8 @@ public class ClientHologramGroupManager {
         return canOpManage;
     }
 
-    public String getCurrentDimension() {
-        return currentDimension;
+    public void setGuiRefreshCallback(Runnable callback) {
+        this.guiRefreshCallback = callback;
     }
 
     public HologramGroupData getGroupById(String groupId) {
@@ -70,8 +74,14 @@ public class ClientHologramGroupManager {
         if (placement == null) return null;
         UUID id = placement.getHashId();
         if (id == null) return null;
-        String groupId = placementToGroupId.get(id);
-        return groupId != null ? getGroupById(groupId) : null;
+        GroupPlacementKey key = placementToGroupKey.get(id);
+        return key != null ? getGroupById(key.groupId()) : null;
+    }
+
+    public GroupPlacementKey getPlacementKey(SchematicPlacement placement) {
+        if (placement == null) return null;
+        UUID id = placement.getHashId();
+        return id != null ? placementToGroupKey.get(id) : null;
     }
 
     public boolean isPlacementInGroup(SchematicPlacement placement) {
@@ -95,18 +105,29 @@ public class ClientHologramGroupManager {
         }
     }
 
-    public void createGroup(String name, String schematicId, BlockPos origin, Rotation rotation, Mirror mirror) {
+    public void createGroup(String name, List<GroupPlacementData> initialPlacements) {
         Minecraft mc = Minecraft.getInstance();
         String dim = (mc.level != null) ? mc.level.dimension().identifier().toString() : "minecraft:overworld";
         if (ClientPlayNetworking.canSend(CreateHologramGroupPayload.TYPE)) {
             ClientPlayNetworking.send(new CreateHologramGroupPayload(
                     name,
-                    schematicId,
                     dim,
-                    origin != null ? origin : BlockPos.ZERO,
-                    rotation != null ? rotation.name() : "NONE",
-                    mirror != null ? mirror.name() : "NONE"
+                    initialPlacements != null ? initialPlacements : Collections.emptyList()
             ));
+        }
+    }
+
+    public void addPlacementsToGroup(String groupId, List<GroupPlacementData> placements) {
+        if (groupId == null || placements == null || placements.isEmpty()) return;
+        if (ClientPlayNetworking.canSend(AddGroupPlacementsPayload.TYPE)) {
+            ClientPlayNetworking.send(new AddGroupPlacementsPayload(groupId, placements));
+        }
+    }
+
+    public void removePlacementFromGroup(String groupId, String placementId) {
+        if (groupId == null || placementId == null) return;
+        if (ClientPlayNetworking.canSend(RemoveGroupPlacementPayload.TYPE)) {
+            ClientPlayNetworking.send(new RemoveGroupPlacementPayload(groupId, placementId));
         }
     }
 
@@ -136,18 +157,24 @@ public class ClientHologramGroupManager {
 
     public void onPlacementModified(SchematicPlacement placement) {
         if (placement == null) return;
-        HologramGroupData group = getGroupForPlacement(placement);
+        GroupPlacementKey key = placementToGroupKey.get(placement.getHashId());
+        if (key == null) return;
+
+        HologramGroupData group = getGroupById(key.groupId());
         if (group == null) return;
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
         UUID myUuid = mc.getUser().getProfileId();
 
+        GroupPlacementData pData = group.getPlacement(key.placementId());
+
         if (group.isOwner(myUuid) || canOpManage) {
-            // Owner is modifying: send update to server
+            // Owner / OP is modifying: send update to server
             if (ClientPlayNetworking.canSend(UpdateHologramPlacementPayload.TYPE)) {
                 ClientPlayNetworking.send(new UpdateHologramPlacementPayload(
                         group.getId(),
+                        key.placementId(),
                         placement.getOrigin(),
                         placement.getRotation().name(),
                         placement.getMirror().name(),
@@ -155,10 +182,12 @@ public class ClientHologramGroupManager {
                 ));
             }
         } else {
-            // Non-owner attempted to modify: immediately revert!
-            placement.setOrigin(group.getOrigin(), DUMMY_STR_CONSUMER);
-            placement.setRotation(parseRotation(group.getRotation()), DUMMY_MSG_CONSUMER);
-            placement.setMirror(parseMirror(group.getMirror()), DUMMY_MSG_CONSUMER);
+            // Non-owner attempted to modify: immediately revert to group values!
+            if (pData != null) {
+                placement.setOrigin(pData.getOrigin(), DUMMY_STR_CONSUMER);
+                placement.setRotation(parseRotation(pData.getRotation()), DUMMY_MSG_CONSUMER);
+                placement.setMirror(parseMirror(pData.getMirror()), DUMMY_MSG_CONSUMER);
+            }
             if (!placement.isLocked()) {
                 placement.toggleLocked();
             }
@@ -184,6 +213,25 @@ public class ClientHologramGroupManager {
         }
     }
 
+    public void checkAndDownloadMissingGroupSchematics() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) return;
+        UUID myUuid = mc.getUser().getProfileId();
+
+        for (HologramGroupData group : this.groups) {
+            if (group.isMember(myUuid)) {
+                for (GroupPlacementData p : group.getPlacements()) {
+                    String schemId = p.getSchematicId();
+                    if (schemId != null && !schemId.isEmpty() && !ClientSchematicManager.getInstance().isSchematicAvailableLocally(schemId)) {
+                        ClientSchematicManager.getInstance().downloadSchematic(schemId, path -> {
+                            syncWithLitematicaPlacements();
+                        });
+                    }
+                }
+            }
+        }
+    }
+
     private void syncWithLitematicaPlacements() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
@@ -192,90 +240,65 @@ public class ClientHologramGroupManager {
         SchematicPlacementManager placementManager = DataManager.getSchematicPlacementManager();
         List<SchematicPlacement> allPlacements = placementManager.getAllSchematicsPlacements();
 
-        Set<String> activeGroupIds = new HashSet<>();
+        Set<GroupPlacementKey> activeKeys = new HashSet<>();
 
         for (HologramGroupData group : this.groups) {
-            activeGroupIds.add(group.getId());
             boolean isMember = group.isMember(myUuid);
 
             if (isMember) {
-                // Find existing placement
-                UUID existingPlacementId = groupToPlacementId.get(group.getId());
-                SchematicPlacement matchedPlacement = null;
+                for (GroupPlacementData pData : group.getPlacements()) {
+                    GroupPlacementKey key = new GroupPlacementKey(group.getId(), pData.getId());
+                    activeKeys.add(key);
 
-                if (existingPlacementId != null) {
-                    for (SchematicPlacement p : allPlacements) {
-                        if (p.getHashId().equals(existingPlacementId)) {
-                            matchedPlacement = p;
-                            break;
+                    UUID existingPlacementId = groupKeyToPlacementId.get(key);
+                    SchematicPlacement matchedPlacement = null;
+
+                    if (existingPlacementId != null) {
+                        for (SchematicPlacement p : allPlacements) {
+                            if (p.getHashId().equals(existingPlacementId)) {
+                                matchedPlacement = p;
+                                break;
+                            }
                         }
                     }
-                }
 
-                // If not matched by registered ID, check if any placement matches schematic and group name
-                if (matchedPlacement == null) {
-                    for (SchematicPlacement p : allPlacements) {
-                        if (p.getName().equalsIgnoreCase(group.getName()) ||
-                                (placementToGroupId.containsKey(p.getHashId()) && placementToGroupId.get(p.getHashId()).equals(group.getId()))) {
-                            matchedPlacement = p;
-                            groupToPlacementId.put(group.getId(), p.getHashId());
-                            placementToGroupId.put(p.getHashId(), group.getId());
-                            break;
-                        }
-                    }
-                }
-
-                if (matchedPlacement != null) {
-                    // Update parameters
-                    boolean isOwner = group.isOwner(myUuid);
-                    if (!isOwner) {
-                        // Non-owner receives parameters from owner
-                        if (!matchedPlacement.getOrigin().equals(group.getOrigin())) {
-                            matchedPlacement.setOrigin(group.getOrigin(), DUMMY_STR_CONSUMER);
-                        }
-                        Rotation rot = parseRotation(group.getRotation());
-                        if (matchedPlacement.getRotation() != rot) {
-                            matchedPlacement.setRotation(rot, DUMMY_MSG_CONSUMER);
-                        }
-                        Mirror mir = parseMirror(group.getMirror());
-                        if (matchedPlacement.getMirror() != mir) {
-                            matchedPlacement.setMirror(mir, DUMMY_MSG_CONSUMER);
-                        }
-                        // Non-owner is locked from editing
-                        if (!matchedPlacement.isLocked()) {
-                            matchedPlacement.toggleLocked();
+                    if (matchedPlacement != null) {
+                        boolean isOwner = group.isOwner(myUuid);
+                        if (!isOwner) {
+                            if (!matchedPlacement.getOrigin().equals(pData.getOrigin())) {
+                                matchedPlacement.setOrigin(pData.getOrigin(), DUMMY_STR_CONSUMER);
+                            }
+                            Rotation rot = parseRotation(pData.getRotation());
+                            if (matchedPlacement.getRotation() != rot) {
+                                matchedPlacement.setRotation(rot, DUMMY_MSG_CONSUMER);
+                            }
+                            Mirror mir = parseMirror(pData.getMirror());
+                            if (matchedPlacement.getMirror() != mir) {
+                                matchedPlacement.setMirror(mir, DUMMY_MSG_CONSUMER);
+                            }
+                            if (!matchedPlacement.isLocked()) {
+                                matchedPlacement.toggleLocked();
+                            }
+                        } else {
+                            if (matchedPlacement.isLocked() != pData.isLocked()) {
+                                matchedPlacement.toggleLocked();
+                            }
                         }
                     } else {
-                        if (matchedPlacement.isLocked() != group.isLocked()) {
-                            matchedPlacement.toggleLocked();
-                        }
-                    }
-                } else {
-                    // Placement does not exist yet: create it!
-                    loadAndCreatePlacementForGroup(group, !group.isOwner(myUuid));
-                }
-            } else {
-                // Player is NOT a member: if there was a linked placement, remove it!
-                UUID existingId = groupToPlacementId.remove(group.getId());
-                if (existingId != null) {
-                    placementToGroupId.remove(existingId);
-                    for (SchematicPlacement p : allPlacements) {
-                        if (p.getHashId().equals(existingId)) {
-                            placementManager.removeSchematicPlacement(p);
-                            break;
-                        }
+                        // Create placement for this group placement
+                        loadAndCreatePlacementForGroup(group.getId(), pData, !group.isOwner(myUuid));
                     }
                 }
             }
         }
 
-        // Clean up groups that no longer exist
-        Iterator<Map.Entry<String, UUID>> it = groupToPlacementId.entrySet().iterator();
+        // Clean up any placements that are no longer part of active joined group placements
+        Iterator<Map.Entry<GroupPlacementKey, UUID>> it = groupKeyToPlacementId.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, UUID> entry = it.next();
-            if (!activeGroupIds.contains(entry.getKey())) {
+            Map.Entry<GroupPlacementKey, UUID> entry = it.next();
+            if (!activeKeys.contains(entry.getKey())) {
                 UUID pId = entry.getValue();
-                placementToGroupId.remove(pId);
+                placementToGroupKey.remove(pId);
                 it.remove();
                 for (SchematicPlacement p : allPlacements) {
                     if (p.getHashId().equals(pId)) {
@@ -287,60 +310,40 @@ public class ClientHologramGroupManager {
         }
     }
 
-    public void registerPlacementForGroup(String groupId, SchematicPlacement placement) {
-        if (groupId == null || placement == null) return;
-        groupToPlacementId.put(groupId, placement.getHashId());
-        placementToGroupId.put(placement.getHashId(), groupId);
-    }
+    private void loadAndCreatePlacementForGroup(String groupId, GroupPlacementData pData, boolean lock) {
+        String schemId = pData.getSchematicId();
+        if (schemId == null || schemId.isEmpty()) return;
 
-    public void checkAndDownloadMissingGroupSchematics() {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null) return;
-        UUID myUuid = mc.getUser().getProfileId();
-
-        for (HologramGroupData group : this.groups) {
-            if (group.isMember(myUuid)) {
-                String schemId = group.getSchematicId();
-                if (!ClientSchematicManager.getInstance().isSchematicAvailableLocally(schemId)) {
-                    ClientSchematicManager.getInstance().downloadSchematic(schemId, path -> {
-                        syncWithLitematicaPlacements();
-                    });
-                }
-            }
-        }
-    }
-
-    private void loadAndCreatePlacementForGroup(HologramGroupData group, boolean lock) {
-        Path localFile = ClientSchematicManager.getInstance().getValidLocalFilePath(group.getSchematicId());
+        Path localFile = ClientSchematicManager.getInstance().getValidLocalFilePath(schemId);
         if (localFile != null && Files.exists(localFile)) {
-            createPlacementFromPath(group, localFile, lock);
+            createPlacementFromPath(groupId, pData, localFile, lock);
         } else {
-            // Request download from server
-            ClientSchematicManager.getInstance().downloadSchematic(group.getSchematicId(), path -> {
-                Path downloaded = ClientSchematicManager.getInstance().getValidLocalFilePath(group.getSchematicId());
+            ClientSchematicManager.getInstance().downloadSchematic(schemId, path -> {
+                Path downloaded = ClientSchematicManager.getInstance().getValidLocalFilePath(schemId);
                 if (downloaded != null && Files.exists(downloaded)) {
-                    createPlacementFromPath(group, downloaded, lock);
+                    createPlacementFromPath(groupId, pData, downloaded, lock);
                 }
             });
         }
     }
 
-    private void createPlacementFromPath(HologramGroupData group, Path path, boolean lock) {
+    private void createPlacementFromPath(String groupId, GroupPlacementData pData, Path path, boolean lock) {
         try {
             LitematicaSchematic schematic = ClientSchematicManager.getInstance().loadSchematicFromFile(path);
             if (schematic == null) return;
 
             UUID placementId = UUID.randomUUID();
-            SchematicPlacement placement = SchematicPlacement.createFor(schematic, group.getOrigin(), group.getName(), true, true, placementId);
-            placement.setRotation(parseRotation(group.getRotation()), DUMMY_MSG_CONSUMER);
-            placement.setMirror(parseMirror(group.getMirror()), DUMMY_MSG_CONSUMER);
+            SchematicPlacement placement = SchematicPlacement.createFor(schematic, pData.getOrigin(), pData.getName(), true, true, placementId);
+            placement.setRotation(parseRotation(pData.getRotation()), DUMMY_MSG_CONSUMER);
+            placement.setMirror(parseMirror(pData.getMirror()), DUMMY_MSG_CONSUMER);
             if (lock && !placement.isLocked()) {
                 placement.toggleLocked();
             }
 
             DataManager.getSchematicPlacementManager().addSchematicPlacement(placement, true);
-            groupToPlacementId.put(group.getId(), placement.getHashId());
-            placementToGroupId.put(placement.getHashId(), group.getId());
+            GroupPlacementKey key = new GroupPlacementKey(groupId, pData.getId());
+            groupKeyToPlacementId.put(key, placement.getHashId());
+            placementToGroupKey.put(placement.getHashId(), key);
         } catch (Exception ignored) {
         }
     }

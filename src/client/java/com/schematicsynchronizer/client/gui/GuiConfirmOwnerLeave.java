@@ -56,23 +56,33 @@ public class GuiConfirmOwnerLeave extends GuiBase {
     }
 
     @Override
-    public void drawContents(GuiContext ctx, int mouseX, int mouseY, float partialTicks) {
+    protected void drawScreenBackground(GuiContext ctx, int mouseX, int mouseY) {
+        super.drawScreenBackground(ctx, mouseX, mouseY);
+
         int dialogW = 340;
         int dialogH = 140;
         int x = (this.width - dialogW) / 2;
         int y = (this.height - dialogH) / 2;
 
         RenderUtils.drawOutlinedBox(ctx, x, y, dialogW, dialogH, 0xF0101010, 0xFFFFAA00);
+    }
 
-        String titleStr = "\u00a76\u00a7l" + StringUtils.translate("schematic_synchronizer.gui.owner_leave.title");
+    @Override
+    public void drawContents(GuiContext ctx, int mouseX, int mouseY, float partialTicks) {
+        int dialogW = 340;
+        int dialogH = 140;
+        int x = (this.width - dialogW) / 2;
+        int y = (this.height - dialogH) / 2;
+
+        String titleStr = "§6§l" + StringUtils.translate("schematic_synchronizer.gui.owner_leave.title");
         this.drawStringWithShadow(ctx, titleStr, x + 14, y + 12, 0xFFFFAA00);
 
         String groupName = (this.group != null) ? this.group.getName() : "";
         String desc1 = StringUtils.translate("schematic_synchronizer.gui.owner_leave.desc1", groupName);
         String desc2 = StringUtils.translate("schematic_synchronizer.gui.owner_leave.desc2");
 
-        this.drawString(ctx, "\u00a7f" + desc1, x + 14, y + 36, 0xFFFFFFFF);
-        this.drawString(ctx, "\u00a77" + desc2, x + 14, y + 52, 0xFFAAAAAA);
+        this.drawString(ctx, "§f" + desc1, x + 14, y + 36, 0xFFFFFFFF);
+        this.drawString(ctx, "§7" + desc2, x + 14, y + 52, 0xFFAAAAAA);
 
         super.drawContents(ctx, mouseX, mouseY, partialTicks);
     }

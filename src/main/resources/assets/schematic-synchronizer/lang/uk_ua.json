@@ -92,5 +92,20 @@
   "schematic_synchronizer.gui.owner_leave.transfer_random": "Вийти та передати права",
   "schematic_synchronizer.gui.button.delete_group_op": "Видалити (OP)",
   "schematic_synchronizer.gui.manage_group.take_ownership_op": "Забрати права собі (OP)",
-  "schematic_synchronizer.gui.manage_group.delete_group": "Видалити групу"
+  "schematic_synchronizer.gui.manage_group.delete_group": "Видалити групу",
+  "schematic_synchronizer.gui.button.groups_list_count": "Список груп (%d)",
+  "schematic_synchronizer.gui.create_group.default_name": "Група %d",
+  "schematic_synchronizer.gui.manage_group.tab_placements": "Розміщення (%d)",
+  "schematic_synchronizer.gui.manage_group.tab_members": "Учасники (%d)",
+  "schematic_synchronizer.gui.manage_group.add_placement": "+ Додати розміщення",
+  "schematic_synchronizer.gui.manage_group.remove_placement": "Видалити",
+  "schematic_synchronizer.gui.manage_group.no_placements": "У цій групі ще немає розміщень. Натисніть «+ Додати розміщення».",
+  "schematic_synchronizer.gui.group.placements_count": "%d розм.",
+  "schematic_synchronizer.gui.group.members_count": "%d уч.",
+  "schematic_synchronizer.gui.group.owner_prefix": "Власник: %s",
+  "schematic_synchronizer.gui.add_placements.title": "Додати розміщення до групи: %s",
+  "schematic_synchronizer.gui.add_placements.add_selected": "Додати вибрані (%d)",
+  "schematic_synchronizer.gui.add_placements.select_all": "Вибрати все",
+  "schematic_synchronizer.gui.add_placements.deselect_all": "Зняти вибір",
+  "schematic_synchronizer.gui.add_placements.already_in_group": "Вже в групі"
 }

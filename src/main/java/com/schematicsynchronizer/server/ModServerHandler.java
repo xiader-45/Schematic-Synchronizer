@@ -103,6 +103,20 @@ public class ModServerHandler {
             });
         });
 
+        ServerPlayNetworking.registerGlobalReceiver(AddGroupPlacementsPayload.TYPE, (payload, context) -> {
+            ServerPlayer player = context.player();
+            context.server().execute(() -> {
+                ServerHologramGroupManager.getInstance().addPlacements(context.server(), player, payload);
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(RemoveGroupPlacementPayload.TYPE, (payload, context) -> {
+            ServerPlayer player = context.player();
+            context.server().execute(() -> {
+                ServerHologramGroupManager.getInstance().removePlacement(context.server(), player, payload);
+            });
+        });
+
         ServerPlayNetworking.registerGlobalReceiver(JoinHologramGroupPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
             context.server().execute(() -> {

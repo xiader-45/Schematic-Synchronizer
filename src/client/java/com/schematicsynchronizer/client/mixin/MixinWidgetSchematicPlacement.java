@@ -82,7 +82,7 @@ public abstract class MixinWidgetSchematicPlacement extends WidgetContainer {
             ButtonGeneric groupButton = new ButtonGeneric(this.buttonsStartX - w, y + 1, w, 20, label);
             groupButton.setHoverStrings(StringUtils.translate("schematic_synchronizer.gui.button.hover.create_group_short"));
             this.addButton(groupButton, (button, mouseButton) -> {
-                GuiBase.openGui(new GuiCreateHologramGroup(null, placement, null));
+                GuiBase.openGui(new GuiCreateHologramGroup(null, placement));
             });
             this.buttonsStartX = groupButton.getX() - 1;
         }

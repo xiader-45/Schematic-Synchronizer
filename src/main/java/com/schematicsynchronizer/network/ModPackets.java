@@ -14,6 +14,8 @@ public class ModPackets {
 
         PayloadTypeRegistry.serverboundPlay().register(RequestHologramGroupsPayload.TYPE, RequestHologramGroupsPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(CreateHologramGroupPayload.TYPE, CreateHologramGroupPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(AddGroupPlacementsPayload.TYPE, AddGroupPlacementsPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(RemoveGroupPlacementPayload.TYPE, RemoveGroupPlacementPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(JoinHologramGroupPayload.TYPE, JoinHologramGroupPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(LeaveHologramGroupPayload.TYPE, LeaveHologramGroupPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(KickMemberHologramGroupPayload.TYPE, KickMemberHologramGroupPayload.CODEC);
