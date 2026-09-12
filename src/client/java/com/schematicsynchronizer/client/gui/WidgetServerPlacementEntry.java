@@ -33,9 +33,7 @@ public class WidgetServerPlacementEntry extends WidgetListEntryBase<PlayerPlacem
         }
 
         this.parentList.setLastSelectedEntry(this.entry, this.listIndex);
-        if (isDouble) {
-            this.parentList.getParentGui().onPlacementDoubleClicked(this.entry);
-        }
+        this.parentList.getParentGui().onSelectionChange(this.entry);
         return true;
     }
 

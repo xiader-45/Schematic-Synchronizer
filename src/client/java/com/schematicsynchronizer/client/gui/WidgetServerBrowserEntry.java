@@ -1,6 +1,7 @@
 package com.schematicsynchronizer.client.gui;
 
 import com.schematicsynchronizer.data.PlayerPlacementInfo;
+import fi.dy.masa.litematica.gui.Icons;
 import fi.dy.masa.malilib.gui.interfaces.IGuiIcon;
 import fi.dy.masa.malilib.gui.widgets.WidgetListEntryBase;
 import fi.dy.masa.malilib.render.GuiContext;
@@ -56,14 +57,8 @@ public class WidgetServerBrowserEntry extends WidgetListEntryBase<ServerBrowserE
         if (this.entry.isSchematic()) {
             this.parentList.setLastSelectedEntry(this.entry, this.listIndex);
             this.parentList.getParentGui().onSelectionChange(this.entry);
-            if (isDoubleClick) {
-                this.parentList.getParentGui().onSchematicDoubleClicked(this.entry);
-                lastClickTime = 0;
-                lastClickedEntry = null;
-            } else {
-                lastClickTime = now;
-                lastClickedEntry = this.entry;
-            }
+            lastClickTime = now;
+            lastClickedEntry = this.entry;
             return true;
         }
 
@@ -121,7 +116,7 @@ public class WidgetServerBrowserEntry extends WidgetListEntryBase<ServerBrowserE
             // Player placements badge
             List<PlayerPlacementInfo> placements = this.entry.getPlacements();
             if (!placements.isEmpty()) {
-                String badge = "👤 " + placements.size();
+                String badge = "\uD83D\uDC64 " + placements.size();
                 int bw = this.getStringWidth(badge);
                 rightX -= bw;
                 this.drawString(ctx, rightX, textY, 0xFF55FFFF, badge);
