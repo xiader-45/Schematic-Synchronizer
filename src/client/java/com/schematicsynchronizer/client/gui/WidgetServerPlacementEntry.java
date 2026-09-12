@@ -70,7 +70,8 @@ public class WidgetServerPlacementEntry extends WidgetListEntryBase<PlayerPlacem
                 schemName = schemName.substring(0, schemName.length() - 10);
             }
 
-            String mainText = schemName + " §7(§b" + this.entry.getOwnerName() + "§7)";
+            String bracketColor = selected ? "§f" : "§7";
+            String mainText = schemName + " " + bracketColor + "(§b" + this.entry.getOwnerName() + bracketColor + ")";
 
             int rightX = this.x + this.width - 6;
 
@@ -83,11 +84,12 @@ public class WidgetServerPlacementEntry extends WidgetListEntryBase<PlayerPlacem
                 rightX -= 6;
             }
 
-            // 2. Coordinates
+            // 2. Coordinates (white when selected, light gray otherwise)
             String posStr = this.entry.getPos().toShortString();
             int pw = this.getStringWidth(posStr);
             rightX -= pw;
-            this.drawString(ctx, rightX, textY, 0xFFAAAAAA, posStr);
+            int posColor = selected ? 0xFFFFFFFF : 0xFFAAAAAA;
+            this.drawString(ctx, rightX, textY, posColor, posStr);
             rightX -= 6;
 
             // 3. Dimension
@@ -99,13 +101,14 @@ public class WidgetServerPlacementEntry extends WidgetListEntryBase<PlayerPlacem
             rightX -= dw;
             this.drawString(ctx, rightX, textY, 0xFF55FF55, dim);
 
-            // 4. Date & Time (to the left of dimension)
+            // 4. Date & Time (white when selected, gray otherwise)
             if (this.entry.getTimestamp() > 0) {
                 rightX -= 6;
                 String timeStr = DATE_FORMAT.format(new Date(this.entry.getTimestamp()));
                 int tw = this.getStringWidth(timeStr);
                 rightX -= tw;
-                this.drawString(ctx, rightX, textY, 0xFF888888, timeStr);
+                int timeColor = selected ? 0xFFFFFFFF : 0xFF888888;
+                this.drawString(ctx, rightX, textY, timeColor, timeStr);
             }
 
             // Draw main text clamped if needed to avoid overlapping rightX
