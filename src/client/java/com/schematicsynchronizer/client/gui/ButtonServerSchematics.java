@@ -28,17 +28,23 @@ public class ButtonServerSchematics extends ButtonGeneric {
         }
 
         // Draw custom 11x11 server icon (normal or highlight)
-        int iconX = this.x + 4;
+        int iconX = this.x + 6;
         int iconY = this.y + (this.height - 11) / 2;
         Identifier icon = this.hovered ? ICON_HOVER : ICON_NORMAL;
         ctx.blit(RenderPipelines.GUI_TEXTURED, icon, iconX, iconY, 0.0f, 0.0f, 11, 11, 11, 11);
 
-        // Draw button label offset after icon
+        // Draw button label centered with shadow, matching all standard Litematica/Malilib buttons
         if (this.displayString != null && !this.displayString.isEmpty()) {
             int textY = this.y + (this.height - 8) / 2;
-            int textColor = !this.enabled ? 0xFFA0A0A0 : (this.hovered ? 0xFFFFFFFF : 0xFFE0E0E0);
-            int textX = this.x + 4 + 11 + 4;
-            this.drawString(ctx, textX, textY, textColor, this.displayString);
+            int textColor = 0xFFE0E0E0;
+            if (!this.enabled) {
+                textColor = 0xFFA0A0A0;
+            } else if (this.hovered) {
+                textColor = 0xFFFFFFFF;
+            }
+
+            int centerX = this.x + this.width / 2;
+            this.drawCenteredStringWithShadow(ctx, centerX, textY, textColor, this.displayString);
         }
     }
 }
