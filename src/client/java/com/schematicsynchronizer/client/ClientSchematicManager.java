@@ -162,6 +162,14 @@ public class ClientSchematicManager {
         return Collections.unmodifiableList(this.serverSchematics);
     }
 
+    public ServerSchematicInfo getSchematic(String id) {
+        return id != null ? this.schematicMap.get(id) : null;
+    }
+
+    public List<PlayerPlacementInfo> getAllPlacements() {
+        return Collections.unmodifiableList(this.playerPlacements);
+    }
+
     public List<PlayerPlacementInfo> getPlacementsForSchematic(String schematicId) {
         List<PlayerPlacementInfo> list = this.placementsBySchematic.get(schematicId);
         return list != null ? list : Collections.emptyList();
@@ -197,48 +205,49 @@ public class ClientSchematicManager {
         return clean.isEmpty() ? "default" : clean;
     }
 
+    private static void migrateFolder(Path source, Path target) {
+        if (source == null || !Files.exists(source) || !Files.isDirectory(source)) {
+            return;
+        }
+        try (Stream<Path> stream = Files.walk(source)) {
+            stream.forEach(src -> {
+                if (Files.isRegularFile(src)) {
+                    try {
+                        Path rel = source.relativize(src);
+                        Path dest = target.resolve(rel);
+                        if (dest.getParent() != null && !Files.exists(dest.getParent())) {
+                            Files.createDirectories(dest.getParent());
+                        }
+                        if (!Files.exists(dest)) {
+                            Files.move(src, dest, StandardCopyOption.REPLACE_EXISTING);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+            });
+        } catch (Exception ignored) {
+        }
+    }
+
     public Path getCacheDirectory() {
         String serverFolder = getServerIdentifier();
-        Path base = FabricLoader.getInstance().getGameDir().resolve("schematics").resolve("server").resolve(serverFolder);
+        Path base = FabricLoader.getInstance().getGameDir().resolve("schematics").resolve(".server_schematics").resolve(serverFolder);
         try {
             if (!Files.exists(base)) {
                 Files.createDirectories(base);
             }
             // Migrate legacy .server_cache if it exists
-            Path legacy = FabricLoader.getInstance().getGameDir().resolve("schematics").resolve(".server_cache");
-            if (Files.exists(legacy) && Files.isDirectory(legacy)) {
-                try (Stream<Path> stream = Files.walk(legacy)) {
-                    stream.forEach(src -> {
-                        if (Files.isRegularFile(src)) {
-                            Path rel = legacy.relativize(src);
-                            Path dest = base.resolve(rel);
-                            try {
-                                if (dest.getParent() != null && !Files.exists(dest.getParent())) {
-                                    Files.createDirectories(dest.getParent());
-                                }
-                                if (!Files.exists(dest)) {
-                                    Files.move(src, dest, StandardCopyOption.REPLACE_EXISTING);
-                                }
-                            } catch (Exception ignored) {
-                            }
-                        }
-                    });
-                } catch (Exception ignored) {
+            Path legacyCache = FabricLoader.getInstance().getGameDir().resolve("schematics").resolve(".server_cache");
+            migrateFolder(legacyCache, base);
+
+            // Migrate legacy schematics/server
+            Path legacyServer = FabricLoader.getInstance().getGameDir().resolve("schematics").resolve("server");
+            if (Files.exists(legacyServer)) {
+                Path legacyServerSub = legacyServer.resolve(serverFolder);
+                if (Files.exists(legacyServerSub)) {
+                    migrateFolder(legacyServerSub, base);
                 }
-            }
-            // Migrate any legacy root server files from schematics/server/
-            Path serverRoot = FabricLoader.getInstance().getGameDir().resolve("schematics").resolve("server");
-            try (Stream<Path> rootFiles = Files.list(serverRoot)) {
-                rootFiles.filter(Files::isRegularFile).forEach(file -> {
-                    try {
-                        Path dest = base.resolve(file.getFileName());
-                        if (!Files.exists(dest)) {
-                            Files.move(file, dest, StandardCopyOption.REPLACE_EXISTING);
-                        }
-                    } catch (Exception ignored) {
-                    }
-                });
-            } catch (Exception ignored) {
+                migrateFolder(legacyServer, base);
             }
         } catch (IOException ignored) {
         }

@@ -1,0 +1,102 @@
+package com.schematicsynchronizer.client.gui;
+
+import com.schematicsynchronizer.data.PlayerPlacementInfo;
+import fi.dy.masa.litematica.gui.Icons;
+import fi.dy.masa.malilib.gui.interfaces.IGuiIcon;
+import fi.dy.masa.malilib.gui.widgets.WidgetListEntryBase;
+import fi.dy.masa.malilib.render.GuiContext;
+import fi.dy.masa.malilib.render.RenderUtils;
+import net.minecraft.client.input.MouseButtonEvent;
+
+public class WidgetServerPlacementEntry extends WidgetListEntryBase<PlayerPlacementInfo> {
+    private final boolean isOdd;
+    private final WidgetListServerPlacements parentList;
+
+    public WidgetServerPlacementEntry(int x, int y, int width, int height,
+                                     PlayerPlacementInfo entry, int listIndex,
+                                     WidgetListServerPlacements parentList) {
+        super(x, y, width, height, entry, listIndex);
+        this.isOdd = (listIndex % 2 == 1);
+        this.parentList = parentList;
+    }
+
+    @Override
+    protected boolean onMouseClickedImpl(MouseButtonEvent event, boolean isDouble) {
+        if (event.input() != 0) {
+            return false;
+        }
+
+        this.parentList.setLastSelectedEntry(this.entry, this.listIndex);
+        if (isDouble) {
+            this.parentList.getParentGui().onPlacementDoubleClicked(this.entry);
+        }
+        return true;
+    }
+
+    @Override
+    public void render(GuiContext ctx, int mouseX, int mouseY, boolean selected) {
+        if (selected) {
+            RenderUtils.drawRect(ctx, this.x, this.y, this.width, this.height, 0x70FFFFFF);
+            RenderUtils.drawOutline(ctx, this.x, this.y, this.width, this.height, 0xEEEEEEEE);
+        } else if (this.isMouseOver(mouseX, mouseY)) {
+            RenderUtils.drawOutline(ctx, this.x, this.y, this.width, this.height, 0xEEEEEEEE);
+            RenderUtils.drawRect(ctx, this.x, this.y, this.width, this.height, 0x38FFFFFF);
+        } else if (this.isOdd) {
+            RenderUtils.drawRect(ctx, this.x, this.y, this.width, this.height, 0x20FFFFFF);
+        } else {
+            RenderUtils.drawRect(ctx, this.x, this.y, this.width, this.height, 0x38FFFFFF);
+        }
+
+        IGuiIcon icon = Icons.FILE_ICON_LITEMATIC;
+        if (icon != null) {
+            int iconY = this.y + (this.height - icon.getHeight()) / 2;
+            icon.renderAt(ctx, this.x + 3, iconY, 0, true, false);
+        }
+
+        int textX = this.x + 22;
+        int textY = this.y + (this.height - this.fontHeight) / 2 + 1;
+
+        if (this.entry != null) {
+            String schemName = this.entry.getSchematicId();
+            int slash = schemName.lastIndexOf('/');
+            if (slash >= 0 && slash < schemName.length() - 1) {
+                schemName = schemName.substring(slash + 1);
+            }
+            if (schemName.endsWith(".litematic")) {
+                schemName = schemName.substring(0, schemName.length() - 10);
+            }
+
+            String mainText = schemName + " §7(§b" + this.entry.getOwnerName() + "§7)";
+            this.drawString(ctx, textX, textY, 0xFFFFFFFF, mainText);
+
+            int rightX = this.x + this.width - 6;
+
+            // Rotation
+            String rot = this.entry.getRotation();
+            if (rot != null && !rot.equals("NONE")) {
+                int rw = this.getStringWidth(rot);
+                rightX -= rw;
+                this.drawString(ctx, rightX, textY, 0xFFFFAA00, rot);
+                rightX -= 6;
+            }
+
+            // Coordinates
+            String posStr = this.entry.getPos().toShortString();
+            int pw = this.getStringWidth(posStr);
+            rightX -= pw;
+            this.drawString(ctx, rightX, textY, 0xFFAAAAAA, posStr);
+            rightX -= 6;
+
+            // Dimension
+            String dim = this.entry.getDimension();
+            if (dim.contains(":")) {
+                dim = dim.substring(dim.indexOf(':') + 1);
+            }
+            int dw = this.getStringWidth(dim);
+            rightX -= dw;
+            this.drawString(ctx, rightX, textY, 0xFF55FF55, dim);
+        }
+
+        super.render(ctx, mouseX, mouseY, selected);
+    }
+}

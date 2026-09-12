@@ -5,6 +5,7 @@ import com.schematicsynchronizer.data.PlayerPlacementInfo;
 import com.schematicsynchronizer.data.ServerSchematicInfo;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.gui.Icons;
+import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.gui.GuiListBase;
 import fi.dy.masa.malilib.gui.button.ButtonGeneric;
 import fi.dy.masa.malilib.gui.widgets.WidgetCheckBox;
@@ -23,7 +24,6 @@ import java.util.List;
 
 public class GuiServerSchematicsList extends GuiListBase<ServerBrowserEntry, WidgetServerBrowserEntry, WidgetListServerBrowser> {
     private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-    private int selectedPlacementIndex = 0;
 
     public GuiServerSchematicsList(Screen parent) {
         super(10, 26);
@@ -65,7 +65,7 @@ public class GuiServerSchematicsList extends GuiListBase<ServerBrowserEntry, Wid
         ServerBrowserEntry selected = getListWidget() != null ? getListWidget().getLastSelectedEntry() : null;
         boolean isSchem = (selected != null && selected.isSchematic());
 
-        // Button 1: "Создать голограмму" (litematica.gui.button.create_placement) / "Загрузить схему" (litematica.gui.button.load_schematic_to_memory)
+        // Button 1: "Создать голограмму" / "Загрузить схему"
         String loadLabel = DataManager.getCreatePlacementOnLoad()
                 ? StringUtils.translate("litematica.gui.button.create_placement")
                 : StringUtils.translate("litematica.gui.button.load_schematic_to_memory");
@@ -83,45 +83,25 @@ public class GuiServerSchematicsList extends GuiListBase<ServerBrowserEntry, Wid
         });
         x += loadW + 4;
 
-        // Button 2: "Разместить как у игрока"
+        // Button 2: "Список размещений"
         List<PlayerPlacementInfo> placements = (isSchem && selected.getPlacements() != null) ? selected.getPlacements() : Collections.emptyList();
-        if (placements.isEmpty()) {
-            String label = StringUtils.translate("schematic_synchronizer.gui.button.place_like_player");
-            int w = this.getStringWidth(label) + 16;
-            ButtonGeneric btn = new ButtonGeneric(x, y, w, 20, label);
-            btn.setEnabled(false);
-            addButton(btn, (b, m) -> {});
-            x += w + 4;
-        } else if (placements.size() == 1) {
-            PlayerPlacementInfo p = placements.get(0);
-            String label = StringUtils.translate("schematic_synchronizer.gui.button.place_like_player_name", p.getOwnerName());
-            int w = this.getStringWidth(label) + 16;
-            ButtonGeneric btn = new ButtonGeneric(x, y, w, 20, label);
-            addButton(btn, (b, m) -> ClientSchematicManager.getInstance().placeLikePlayer(p));
-            x += w + 4;
-        } else {
-            int idx = selectedPlacementIndex % placements.size();
-            PlayerPlacementInfo p = placements.get(idx);
-            String label = StringUtils.translate("schematic_synchronizer.gui.button.place_like_player_multi", p.getOwnerName(), idx + 1, placements.size());
-            int w = this.getStringWidth(label) + 16;
-            ButtonGeneric btn = new ButtonGeneric(x, y, w, 20, label);
-            addButton(btn, (b, m) -> ClientSchematicManager.getInstance().placeLikePlayer(p));
-            x += w + 2;
-
-            ButtonGeneric btnCycle = new ButtonGeneric(x, y, 20, 20, "↺");
-            addButton(btnCycle, (b, m) -> {
-                selectedPlacementIndex++;
-                reCreateButtons();
-            });
-            x += 20 + 4;
-        }
+        String placeLabel = placements.isEmpty()
+                ? StringUtils.translate("schematic_synchronizer.gui.button.placement_list")
+                : StringUtils.translate("schematic_synchronizer.gui.button.placement_list_count", placements.size());
+        int placeW = this.getStringWidth(placeLabel) + 16;
+        ButtonGeneric btnPlacements = new ButtonGeneric(x, y, placeW, 20, placeLabel);
+        addButton(btnPlacements, (btn, mouse) -> {
+            String filterId = (selected != null && selected.isSchematic()) ? selected.getFullPath() : null;
+            GuiBase.openGui(new GuiServerPlacementsList(this, filterId));
+        });
+        x += placeW + 4;
 
         // Button 3: "Список материалов" (litematica.gui.button.material_list)
         String matLabel = StringUtils.translate("litematica.gui.button.material_list");
         int matW = this.getStringWidth(matLabel) + 16;
         ButtonGeneric btnMat = new ButtonGeneric(x, y, matW, 20, matLabel);
         btnMat.setEnabled(isSchem);
-        addButton(btnMat, (b, m) -> {
+        addButton(btnMat, (btn, mouse) -> {
             if (selected != null && selected.isSchematic()) {
                 ClientSchematicManager.getInstance().openMaterialList(selected.getSchematicInfo(), this);
             }
@@ -132,18 +112,17 @@ public class GuiServerSchematicsList extends GuiListBase<ServerBrowserEntry, Wid
         String refLabel = StringUtils.translate("litematica.gui.button.material_list.refresh_list");
         int refW = this.getStringWidth(refLabel) + 16;
         ButtonGeneric btnRef = new ButtonGeneric(x, y, refW, 20, refLabel);
-        addButton(btnRef, (b, m) -> ClientSchematicManager.getInstance().requestRefresh());
+        addButton(btnRef, (btn, mouse) -> ClientSchematicManager.getInstance().requestRefresh());
 
         // Button 5: "Главное меню" (litematica.gui.button.change_menu.to_main_menu, Right aligned)
         String mmLabel = StringUtils.translate("litematica.gui.button.change_menu.to_main_menu");
         int mmW = this.getStringWidth(mmLabel) + 20;
         int mmX = this.width - mmW - 10;
         ButtonGeneric btnMM = new ButtonGeneric(mmX, y, mmW, 20, mmLabel);
-        addButton(btnMM, (b, m) -> closeGui(true));
+        addButton(btnMM, (btn, mouse) -> closeGui(true));
     }
 
     public void onSelectionChange(ServerBrowserEntry entry) {
-        this.selectedPlacementIndex = 0;
         this.reCreateButtons();
     }
 
@@ -316,7 +295,6 @@ public class GuiServerSchematicsList extends GuiListBase<ServerBrowserEntry, Wid
             if (placements.isEmpty()) {
                 this.drawString(ctx, "  §7" + StringUtils.translate("schematic_synchronizer.gui.info.no_placements"), contentX, curY, 0xFFAAAAAA);
             } else {
-                int activeIdx = selectedPlacementIndex % placements.size();
                 for (int i = 0; i < placements.size(); i++) {
                     if (curY + 32 > boxY + boxH) {
                         String moreStr = StringUtils.translate("schematic_synchronizer.gui.info.more_placements", placements.size() - i);
@@ -324,8 +302,7 @@ public class GuiServerSchematicsList extends GuiListBase<ServerBrowserEntry, Wid
                         break;
                     }
                     PlayerPlacementInfo p = placements.get(i);
-                    boolean isCurrent = (i == activeIdx);
-                    String prefix = isCurrent ? "§a▶ §b" : "§7• §b";
+                    String prefix = "§7• §b";
                     this.drawString(ctx, prefix + p.getOwnerName() + ":", contentX, curY, 0xFF55FFFF);
                     curY += 10;
                     this.drawString(ctx, "   §f" + p.getPos().toShortString(), contentX, curY, 0xFFFFFFFF);

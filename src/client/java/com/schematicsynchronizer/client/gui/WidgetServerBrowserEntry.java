@@ -87,15 +87,6 @@ public class WidgetServerBrowserEntry extends WidgetListEntryBase<ServerBrowserE
 
             int rightX = this.x + this.width - 6;
 
-            // Size
-            if (this.entry.getSchematicInfo() != null) {
-                String sizeStr = this.entry.getSchematicInfo().getFormattedSize();
-                int sw = this.getStringWidth(sizeStr);
-                rightX -= sw;
-                this.drawString(ctx, rightX, textY, 0xFF888888, sizeStr);
-                rightX -= 6;
-            }
-
             // Cached badge
             if (this.entry.isCached()) {
                 String check = "✔";
