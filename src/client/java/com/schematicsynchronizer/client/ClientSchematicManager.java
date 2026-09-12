@@ -36,10 +36,8 @@ import net.minecraft.world.level.block.Rotation;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.nio.file.Files;
-import java.nio.file.LinkOption;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -162,6 +160,47 @@ public class ClientSchematicManager {
         }, List.of(SchematicPlacementEventFlag.ALL_EVENTS));
     }
 
+    public boolean isAllowedLocalPath(Path path) {
+        if (path == null) {
+            return false;
+        }
+        try {
+            Path root = FabricLoader.getInstance().getGameDir().resolve("schematics").toAbsolutePath().normalize();
+            Path normPath = path.toAbsolutePath().normalize();
+
+            if (!normPath.startsWith(root)) {
+                return true;
+            }
+
+            Path rel = root.relativize(normPath);
+            int nameCount = rel.getNameCount();
+            if (nameCount >= 2) {
+                String firstPart = rel.getName(0).toString();
+                if (firstPart.equalsIgnoreCase(".server_schematics") ||
+                    firstPart.equalsIgnoreCase("server_schematics") ||
+                    firstPart.equalsIgnoreCase(".server_cache")) {
+
+                    String serverFolder = rel.getName(1).toString();
+                    String currentServerFolder = getServerIdentifier();
+                    if (!serverFolder.equalsIgnoreCase(currentServerFolder)) {
+                        return false;
+                    }
+                }
+            } else if (nameCount == 1) {
+                String firstPart = rel.getName(0).toString();
+                if (Files.isRegularFile(normPath) &&
+                    (firstPart.equalsIgnoreCase(".server_schematics") ||
+                     firstPart.equalsIgnoreCase("server_schematics") ||
+                     firstPart.equalsIgnoreCase(".server_cache"))) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public void scanLocalSchematicsAsync() {
         CompletableFuture.runAsync(this::scanLocalSchematics);
     }
@@ -173,12 +212,32 @@ public class ClientSchematicManager {
         }
 
         Set<Path> currentFiles = new HashSet<>();
-        try (Stream<Path> stream = Files.walk(root)) {
-            stream.filter(Files::isRegularFile).forEach(path -> {
-                String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
-                if (name.endsWith(".litematic") || name.endsWith(".schematic") ||
-                    name.endsWith(".schem") || name.endsWith(".litematica") || name.endsWith(".nbt")) {
-                    currentFiles.add(path.toAbsolutePath().normalize());
+        try {
+            Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                    if (!isAllowedLocalPath(dir)) {
+                        return FileVisitResult.SKIP_SUBTREE;
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                    if (!isAllowedLocalPath(file)) {
+                        return FileVisitResult.CONTINUE;
+                    }
+                    String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
+                    if (name.endsWith(".litematic") || name.endsWith(".schematic") ||
+                        name.endsWith(".schem") || name.endsWith(".litematica") || name.endsWith(".nbt")) {
+                        currentFiles.add(file.toAbsolutePath().normalize());
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                    return FileVisitResult.CONTINUE;
                 }
             });
         } catch (Exception ignored) {
@@ -231,50 +290,75 @@ public class ClientSchematicManager {
         }
         String lowerHash = hash.toLowerCase(Locale.ROOT).trim();
         Path cachedPath = this.hashToLocalPath.get(lowerHash);
-        if (cachedPath != null && Files.exists(cachedPath)) {
+        if (cachedPath != null && Files.exists(cachedPath) && isAllowedLocalPath(cachedPath)) {
             try {
                 if (expectedSize <= 0 || Files.size(cachedPath) == expectedSize) {
                     return cachedPath;
                 }
             } catch (IOException ignored) {
             }
+        } else if (cachedPath != null && !isAllowedLocalPath(cachedPath)) {
+            this.hashToLocalPath.remove(lowerHash);
         }
 
         Path root = FabricLoader.getInstance().getGameDir().resolve("schematics");
         if (Files.exists(root)) {
-            try (Stream<Path> stream = Files.walk(root)) {
-                Optional<Path> found = stream.filter(Files::isRegularFile).filter(path -> {
-                    String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
-                    if (!name.endsWith(".litematic") && !name.endsWith(".schematic") &&
-                        !name.endsWith(".schem") && !name.endsWith(".litematica") && !name.endsWith(".nbt")) {
-                        return false;
-                    }
-                    try {
-                        if (expectedSize > 0 && Files.size(path) != expectedSize) {
-                            return false;
+            Path[] result = new Path[1];
+            try {
+                Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
+                    @Override
+                    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                        if (!isAllowedLocalPath(dir)) {
+                            return FileVisitResult.SKIP_SUBTREE;
                         }
-                        Path norm = path.toAbsolutePath().normalize();
-                        FileHashes h = computeFileHashes(norm);
-                        if (h != null) {
-                            LocalFileRecord r = new LocalFileRecord(norm, Files.size(norm), Files.getLastModifiedTime(norm).toMillis(), h.sha256, h.md5);
-                            this.localFileRecords.put(norm, r);
-                            if (h.sha256 != null && !h.sha256.isEmpty()) {
-                                this.hashToLocalPath.put(h.sha256.toLowerCase(Locale.ROOT), norm);
-                            }
-                            if (h.md5 != null && !h.md5.isEmpty()) {
-                                this.hashToLocalPath.put(h.md5.toLowerCase(Locale.ROOT), norm);
-                            }
-                            return lowerHash.equalsIgnoreCase(h.sha256) || lowerHash.equalsIgnoreCase(h.md5);
-                        }
-                    } catch (Exception ignored) {
+                        return FileVisitResult.CONTINUE;
                     }
-                    return false;
-                }).findFirst();
 
-                if (found.isPresent()) {
-                    return found.get().toAbsolutePath().normalize();
-                }
+                    @Override
+                    public FileVisitResult visitFile(Path path, BasicFileAttributes attrs) {
+                        if (!isAllowedLocalPath(path)) {
+                            return FileVisitResult.CONTINUE;
+                        }
+                        String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
+                        if (!name.endsWith(".litematic") && !name.endsWith(".schematic") &&
+                            !name.endsWith(".schem") && !name.endsWith(".litematica") && !name.endsWith(".nbt")) {
+                            return FileVisitResult.CONTINUE;
+                        }
+                        try {
+                            if (expectedSize > 0 && Files.size(path) != expectedSize) {
+                                return FileVisitResult.CONTINUE;
+                            }
+                            Path norm = path.toAbsolutePath().normalize();
+                            FileHashes h = computeFileHashes(norm);
+                            if (h != null) {
+                                LocalFileRecord r = new LocalFileRecord(norm, Files.size(norm), Files.getLastModifiedTime(norm).toMillis(), h.sha256, h.md5);
+                                localFileRecords.put(norm, r);
+                                if (h.sha256 != null && !h.sha256.isEmpty()) {
+                                    hashToLocalPath.put(h.sha256.toLowerCase(Locale.ROOT), norm);
+                                }
+                                if (h.md5 != null && !h.md5.isEmpty()) {
+                                    hashToLocalPath.put(h.md5.toLowerCase(Locale.ROOT), norm);
+                                }
+                                if (lowerHash.equalsIgnoreCase(h.sha256) || lowerHash.equalsIgnoreCase(h.md5)) {
+                                    result[0] = norm;
+                                    return FileVisitResult.TERMINATE;
+                                }
+                            }
+                        } catch (Exception ignored) {
+                        }
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
             } catch (Exception ignored) {
+            }
+
+            if (result[0] != null) {
+                return result[0];
             }
         }
 
@@ -433,7 +517,7 @@ public class ClientSchematicManager {
 
         // 2. Any matching file anywhere in schematics directory
         Path localMatch = findLocalFileByHash(info.getHash(), info.getSize());
-        if (localMatch != null && Files.exists(localMatch)) {
+        if (localMatch != null && Files.exists(localMatch) && isAllowedLocalPath(localMatch)) {
             return localMatch;
         }
 
@@ -445,14 +529,14 @@ public class ClientSchematicManager {
             return false;
         }
         Path path = getLocalFilePath(info);
-        if (path == null || !Files.exists(path)) {
+        if (path == null || !Files.exists(path) || !isAllowedLocalPath(path)) {
             return false;
         }
         return matchesHashAndSize(path, info);
     }
 
     private boolean matchesHashAndSize(Path path, ServerSchematicInfo info) {
-        if (path == null || !Files.exists(path) || Files.isDirectory(path)) {
+        if (path == null || !Files.exists(path) || Files.isDirectory(path) || !isAllowedLocalPath(path)) {
             return false;
         }
         try {
