@@ -1,5 +1,9 @@
 package com.schematicsynchronizer.client;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
 import com.schematicsynchronizer.client.gui.GuiServerSchematicsList;
 import com.schematicsynchronizer.data.PlayerPlacementInfo;
 import com.schematicsynchronizer.data.ServerSchematicInfo;
@@ -28,10 +32,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.Rotation;
 
-import java.io.ByteArrayOutputStream;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.file.Files;
@@ -62,6 +63,8 @@ public class ClientSchematicManager {
     private final List<PlayerPlacementInfo> playerPlacements = new ArrayList<>();
     private final Map<String, List<PlayerPlacementInfo>> placementsBySchematic = new ConcurrentHashMap<>();
     private final Map<UUID, String> activePlacementToSchematicId = new ConcurrentHashMap<>();
+    private final Set<UUID> placedFromServerPlacements = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> sharedPlacements = ConcurrentHashMap.newKeySet();
     private final Map<String, Map<Integer, byte[]>> downloadChunks = new ConcurrentHashMap<>();
     private final Map<String, Integer> expectedChunks = new ConcurrentHashMap<>();
     private final Map<String, List<Consumer<Path>>> downloadCallbacks = new ConcurrentHashMap<>();
@@ -86,6 +89,8 @@ public class ClientSchematicManager {
             return;
         }
         this.initialized = true;
+
+        loadPlacementStates();
 
         SchematicPlacementEventHandler.getInstance().registerSchematicPlacementEventListener(new ISchematicPlacementEventListener() {
             @Override
@@ -139,6 +144,7 @@ public class ClientSchematicManager {
         for (ServerSchematicInfo s : schematics) {
             this.schematicMap.put(s.getId(), s);
         }
+        this.loadPlacementStates();
         this.updatePlacements(placements);
         this.checkAndCleanPlacements();
         this.notifyGuiRefresh();
@@ -304,9 +310,11 @@ public class ClientSchematicManager {
         Set<String> activeSchematicIds = new HashSet<>();
         if (currentPlacements != null) {
             for (SchematicPlacement p : currentPlacements) {
-                String id = getSchematicIdForPlacement(p);
-                if (id != null) {
-                    activeSchematicIds.add(id);
+                if (isPlacedFromServer(p) || isPlacementShared(p)) {
+                    String id = getSchematicIdForPlacement(p);
+                    if (id != null) {
+                        activeSchematicIds.add(id);
+                    }
                 }
             }
         }
@@ -541,9 +549,154 @@ public class ClientSchematicManager {
                 placement.setMirror(mirror, DUMMY_CONSUMER);
             }
             this.activePlacementToSchematicId.put(placement.getHashId(), info.getId());
+            this.placedFromServerPlacements.add(placement.getHashId());
+            savePlacementStates();
             DataManager.getSchematicPlacementManager().addSchematicPlacement(placement, true);
             DataManager.getSchematicPlacementManager().setSelectedSchematicPlacement(placement);
             syncPlacementToServer(placement);
+        } catch (Exception ignored) {
+        }
+    }
+
+    public boolean isPlacedFromServer(SchematicPlacement placement) {
+        if (placement == null) return false;
+        UUID id = placement.getHashId();
+        if (id != null && this.placedFromServerPlacements.contains(id)) {
+            return true;
+        }
+        if (placement.getSchematic() != null && placement.getSchematic().getFile() != null) {
+            try {
+                Path file = placement.getSchematic().getFile().toAbsolutePath().normalize();
+                Path cacheDir = getCacheDirectory().toAbsolutePath().normalize();
+                if (file.startsWith(cacheDir)) {
+                    return true;
+                }
+                String pathStr = file.toString().replace('\\', '/');
+                if (pathStr.contains("/.server_schematics/")) {
+                    return true;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return false;
+    }
+
+    public boolean isPlacementShared(SchematicPlacement placement) {
+        if (placement == null) return false;
+        UUID id = placement.getHashId();
+        return id != null && this.sharedPlacements.contains(id);
+    }
+
+    public void setPlacementShared(SchematicPlacement placement, boolean shared) {
+        if (placement == null) return;
+        UUID id = placement.getHashId();
+        if (id == null) return;
+
+        if (shared) {
+            this.sharedPlacements.add(id);
+            savePlacementStates();
+            sharePlacementToServer(placement);
+        } else {
+            this.sharedPlacements.remove(id);
+            savePlacementStates();
+            unsharePlacementFromServer(placement);
+        }
+    }
+
+    public void sharePlacementToServer(SchematicPlacement placement) {
+        if (placement == null) return;
+
+        Path localFile = placement.getSchematic() != null ? placement.getSchematic().getFile() : null;
+        String fileName = null;
+        if (localFile != null && Files.exists(localFile)) {
+            fileName = localFile.getFileName().toString();
+        } else if (placement.getSchematic() != null) {
+            String name = placement.getName();
+            if (!name.endsWith(".litematic")) {
+                name = name + ".litematic";
+            }
+            Path exportDir = getCacheDirectory().resolve("temp_shared");
+            try {
+                Files.createDirectories(exportDir);
+                placement.getSchematic().writeToFile(exportDir, name, true);
+                localFile = exportDir.resolve(name);
+                fileName = name;
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (fileName == null) {
+            fileName = placement.getName() + ".litematic";
+        }
+
+        this.activePlacementToSchematicId.put(placement.getHashId(), fileName);
+
+        if (localFile != null && Files.exists(localFile) && !this.schematicMap.containsKey(fileName)) {
+            uploadFile(localFile, fileName);
+        }
+
+        syncPlacementToServer(placement);
+    }
+
+    public void unsharePlacementFromServer(SchematicPlacement placement) {
+        if (placement == null) return;
+        UUID id = placement.getHashId();
+        String schematicId = getSchematicIdForPlacement(placement);
+        if (id != null) {
+            this.activePlacementToSchematicId.remove(id);
+        }
+        if (ClientPlayNetworking.canSend(RemovePlacementPayload.TYPE)) {
+            ClientPlayNetworking.send(new RemovePlacementPayload(id, schematicId));
+        }
+    }
+
+    private void loadPlacementStates() {
+        try {
+            Path cacheDir = getCacheDirectory();
+            loadUuidSet(cacheDir.resolve("shared_placements.json"), this.sharedPlacements);
+            loadUuidSet(cacheDir.resolve("placed_from_server.json"), this.placedFromServerPlacements);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void savePlacementStates() {
+        try {
+            Path cacheDir = getCacheDirectory();
+            saveUuidSet(cacheDir.resolve("shared_placements.json"), this.sharedPlacements);
+            saveUuidSet(cacheDir.resolve("placed_from_server.json"), this.placedFromServerPlacements);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void loadUuidSet(Path file, Set<UUID> set) {
+        if (!Files.exists(file)) return;
+        try (Reader reader = Files.newBufferedReader(file)) {
+            JsonElement el = JsonParser.parseReader(reader);
+            if (el != null && el.isJsonArray()) {
+                set.clear();
+                for (JsonElement item : el.getAsJsonArray()) {
+                    try {
+                        set.add(UUID.fromString(item.getAsString()));
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void saveUuidSet(Path file, Set<UUID> set) {
+        try {
+            if (file.getParent() != null && !Files.exists(file.getParent())) {
+                Files.createDirectories(file.getParent());
+            }
+            JsonArray arr = new JsonArray();
+            for (UUID id : set) {
+                arr.add(id.toString());
+            }
+            try (Writer writer = Files.newBufferedWriter(file)) {
+                new Gson().toJson(arr, writer);
+            }
         } catch (Exception ignored) {
         }
     }
@@ -573,11 +726,23 @@ public class ClientSchematicManager {
             } catch (Exception ignored) {
             }
         }
+        if (isPlacementShared(placement)) {
+            if (placement.getSchematic() != null && placement.getSchematic().getFile() != null) {
+                String name = placement.getSchematic().getFile().getFileName().toString();
+                if (hashId != null) {
+                    this.activePlacementToSchematicId.put(hashId, name);
+                }
+                return name;
+            }
+        }
         return null;
     }
 
     public void syncPlacementToServer(SchematicPlacement placement) {
         if (placement == null) {
+            return;
+        }
+        if (!isPlacedFromServer(placement) && !isPlacementShared(placement)) {
             return;
         }
         String schematicId = getSchematicIdForPlacement(placement);
@@ -610,13 +775,22 @@ public class ClientSchematicManager {
             return;
         }
         UUID hashId = placement.getHashId();
-        String schematicId = getSchematicIdForPlacement(placement);
+        boolean wasServer = isPlacedFromServer(placement);
+        boolean wasShared = isPlacementShared(placement);
         if (hashId != null) {
-            this.activePlacementToSchematicId.remove(hashId);
+            this.placedFromServerPlacements.remove(hashId);
+            this.sharedPlacements.remove(hashId);
+            savePlacementStates();
         }
-        if (hashId != null || (schematicId != null && !schematicId.isEmpty())) {
-            if (ClientPlayNetworking.canSend(RemovePlacementPayload.TYPE)) {
-                ClientPlayNetworking.send(new RemovePlacementPayload(hashId, schematicId));
+        if (wasServer || wasShared) {
+            String schematicId = getSchematicIdForPlacement(placement);
+            if (hashId != null) {
+                this.activePlacementToSchematicId.remove(hashId);
+            }
+            if (hashId != null || (schematicId != null && !schematicId.isEmpty())) {
+                if (ClientPlayNetworking.canSend(RemovePlacementPayload.TYPE)) {
+                    ClientPlayNetworking.send(new RemovePlacementPayload(hashId, schematicId));
+                }
             }
         }
     }

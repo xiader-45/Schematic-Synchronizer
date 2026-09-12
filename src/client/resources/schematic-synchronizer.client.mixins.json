@@ -3,7 +3,8 @@
 	"package": "com.schematicsynchronizer.client.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"client": [
-		"MixinGuiMainMenu"
+		"MixinGuiMainMenu",
+		"MixinWidgetSchematicPlacement"
 	],
 	"injectors": {
 		"defaultRequire": 1

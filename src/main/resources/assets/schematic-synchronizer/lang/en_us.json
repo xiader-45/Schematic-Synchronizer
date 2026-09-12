@@ -48,5 +48,8 @@
   "schematic_synchronizer.gui.upload_info.select_hint": "Select a schematic or folder to upload to the server.",
   "schematic_synchronizer.gui.upload_info.multiple_selected": "Selected items: %d",
   "schematic_synchronizer.gui.upload_info.directory_schematics": "Schematics in folder: %d",
-  "schematic_synchronizer.gui.upload_info.target_server_folder": "Target server folder: %s"
+  "schematic_synchronizer.gui.upload_info.target_server_folder": "Target server folder: %s",
+  "schematic_synchronizer.gui.button.share_placement": "Share placement: %s",
+  "schematic_synchronizer.gui.button.hover.share_placement": "Share this placement with other players on the server",
+  "schematic_synchronizer.gui.placement.hover.server_schematic": "Schematic placed from server"
 }

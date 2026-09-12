@@ -48,5 +48,8 @@
   "schematic_synchronizer.gui.upload_info.select_hint": "Выберите схематику или папку для загрузки на сервер.",
   "schematic_synchronizer.gui.upload_info.multiple_selected": "Выбрано объектов: %d",
   "schematic_synchronizer.gui.upload_info.directory_schematics": "Схематик в папке: %d",
-  "schematic_synchronizer.gui.upload_info.target_server_folder": "Целевая папка на сервере: %s"
+  "schematic_synchronizer.gui.upload_info.target_server_folder": "Целевая папка на сервере: %s",
+  "schematic_synchronizer.gui.button.share_placement": "Делиться размещением: %s",
+  "schematic_synchronizer.gui.button.hover.share_placement": "Делиться этим размещением с игроками на сервере",
+  "schematic_synchronizer.gui.placement.hover.server_schematic": "Схематика из меню сервера"
 }
