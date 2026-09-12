@@ -13,7 +13,8 @@ import java.util.List;
 public record SchematicListPayload(
         List<ServerSchematicInfo> schematics,
         List<PlayerPlacementInfo> placements,
-        String serverDirectory
+        String serverDirectory,
+        List<String> directories
 ) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<SchematicListPayload> TYPE =
             new CustomPacketPayload.Type<>(SchematicSynchronizer.id("schematic_list"));
@@ -22,7 +23,7 @@ public record SchematicListPayload(
             CustomPacketPayload.codec(SchematicListPayload::write, SchematicListPayload::new);
 
     public SchematicListPayload(RegistryFriendlyByteBuf buf) {
-        this(readSchematics(buf), readPlacements(buf), buf.readUtf());
+        this(readSchematics(buf), readPlacements(buf), buf.readUtf(), readDirectories(buf));
     }
 
     private static List<ServerSchematicInfo> readSchematics(RegistryFriendlyByteBuf buf) {
@@ -43,6 +44,15 @@ public record SchematicListPayload(
         return list;
     }
 
+    private static List<String> readDirectories(RegistryFriendlyByteBuf buf) {
+        int count = buf.readVarInt();
+        List<String> list = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            list.add(buf.readUtf());
+        }
+        return list;
+    }
+
     public void write(RegistryFriendlyByteBuf buf) {
         buf.writeVarInt(schematics.size());
         for (ServerSchematicInfo s : schematics) {
@@ -53,6 +63,12 @@ public record SchematicListPayload(
             p.write(buf);
         }
         buf.writeUtf(serverDirectory != null ? serverDirectory : "");
+        buf.writeVarInt(directories != null ? directories.size() : 0);
+        if (directories != null) {
+            for (String dir : directories) {
+                buf.writeUtf(dir);
+            }
+        }
     }
 
     @Override

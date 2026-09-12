@@ -29,6 +29,7 @@ public class ServerSchematicManager {
 
     private Path schematicsDir;
     private final Map<String, ServerSchematicInfo> schematics = new ConcurrentHashMap<>();
+    private final Set<String> serverDirectories = ConcurrentHashMap.newKeySet();
     private final Map<String, Map<Integer, byte[]>> uploadChunks = new ConcurrentHashMap<>();
 
     public static ServerSchematicManager getInstance() {
@@ -99,37 +100,47 @@ public class ServerSchematicManager {
         }
 
         schematics.clear();
+        serverDirectories.clear();
 
         if (!Files.exists(schematicsDir)) {
             return;
         }
 
         try (Stream<Path> stream = Files.walk(schematicsDir, FileVisitOption.FOLLOW_LINKS)) {
-            stream.filter(Files::isRegularFile).forEach(path -> {
-                String fileName = path.getFileName().toString().toLowerCase(Locale.ROOT);
-                if (fileName.endsWith(".litematic") || fileName.endsWith(".schematic") ||
-                    fileName.endsWith(".schem") || fileName.endsWith(".litematica") || fileName.endsWith(".nbt")) {
-                    try {
-                        String relativePath = schematicsDir.relativize(path).toString().replace('\\', '/');
-                        String name = path.getFileName().toString();
-                        if (name.lastIndexOf('.') > 0) {
-                            name = name.substring(0, name.lastIndexOf('.'));
+            stream.forEach(path -> {
+                if (Files.isDirectory(path)) {
+                    if (!path.equals(schematicsDir)) {
+                        String rel = schematicsDir.relativize(path).toString().replace('\\', '/');
+                        if (!rel.isEmpty() && !rel.startsWith(".")) {
+                            serverDirectories.add(rel);
                         }
-                        long size = Files.size(path);
-                        long modified = Files.getLastModifiedTime(path).toMillis();
-                        String hash = computeHash(path);
+                    }
+                } else if (Files.isRegularFile(path)) {
+                    String fileName = path.getFileName().toString().toLowerCase(Locale.ROOT);
+                    if (fileName.endsWith(".litematic") || fileName.endsWith(".schematic") ||
+                        fileName.endsWith(".schem") || fileName.endsWith(".litematica") || fileName.endsWith(".nbt")) {
+                        try {
+                            String relativePath = schematicsDir.relativize(path).toString().replace('\\', '/');
+                            String name = path.getFileName().toString();
+                            if (name.lastIndexOf('.') > 0) {
+                                name = name.substring(0, name.lastIndexOf('.'));
+                            }
+                            long size = Files.size(path);
+                            long modified = Files.getLastModifiedTime(path).toMillis();
+                            String hash = computeHash(path);
 
-                        SchematicMetadataDetails meta = extractMetadata(path, modified);
+                            SchematicMetadataDetails meta = extractMetadata(path, modified);
 
-                        ServerSchematicInfo info = new ServerSchematicInfo(
-                                relativePath, name, size, hash, modified,
-                                meta.author, meta.timeCreated, meta.regionCount,
-                                meta.totalVolume, meta.totalBlocks,
-                                meta.sizeX, meta.sizeY, meta.sizeZ, meta.minecraftDataVersion
-                        );
+                            ServerSchematicInfo info = new ServerSchematicInfo(
+                                    relativePath, name, size, hash, modified,
+                                    meta.author, meta.timeCreated, meta.regionCount,
+                                    meta.totalVolume, meta.totalBlocks,
+                                    meta.sizeX, meta.sizeY, meta.sizeZ, meta.minecraftDataVersion
+                            );
 
-                        schematics.put(relativePath, info);
-                    } catch (Exception ignored) {
+                            schematics.put(relativePath, info);
+                        } catch (Exception ignored) {
+                        }
                     }
                 }
             });
@@ -224,6 +235,10 @@ public class ServerSchematicManager {
         return new ArrayList<>(schematics.values());
     }
 
+    public List<String> getAllDirectories() {
+        return new ArrayList<>(serverDirectories);
+    }
+
     public ServerSchematicInfo getSchematic(String id) {
         return schematics.get(id);
     }
@@ -233,7 +248,8 @@ public class ServerSchematicManager {
         SchematicListPayload payload = new SchematicListPayload(
                 allSchematics,
                 ServerPlacementManager.getInstance().getAllPlacements(),
-                getSchematicsDir().toString()
+                getSchematicsDir().toString(),
+                getAllDirectories()
         );
         ServerPlayNetworking.send(player, payload);
     }
@@ -243,7 +259,8 @@ public class ServerSchematicManager {
         SchematicListPayload payload = new SchematicListPayload(
                 getAllSchematics(),
                 ServerPlacementManager.getInstance().getAllPlacements(),
-                getSchematicsDir().toString()
+                getSchematicsDir().toString(),
+                getAllDirectories()
         );
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             ServerPlayNetworking.send(player, payload);

@@ -14,7 +14,7 @@ public class SchematicSynchronizerClient implements ClientModInitializer {
 
         ClientPlayNetworking.registerGlobalReceiver(SchematicListPayload.TYPE, (payload, context) -> {
             context.client().execute(() -> {
-                ClientSchematicManager.getInstance().updateCatalog(payload.schematics(), payload.placements(), payload.serverDirectory());
+                ClientSchematicManager.getInstance().updateCatalog(payload.schematics(), payload.placements(), payload.serverDirectory(), payload.directories());
             });
         });
 

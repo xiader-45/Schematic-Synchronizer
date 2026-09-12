@@ -10,6 +10,9 @@ import net.minecraft.client.input.MouseButtonEvent;
 import java.util.List;
 
 public class WidgetServerBrowserEntry extends WidgetListEntryBase<ServerBrowserEntry> {
+    private static long lastClickTime = 0;
+    private static ServerBrowserEntry lastClickedEntry = null;
+
     private final boolean isOdd;
     private final WidgetListServerBrowser parentList;
 
@@ -32,15 +35,34 @@ public class WidgetServerBrowserEntry extends WidgetListEntryBase<ServerBrowserE
             return true;
         }
 
+        long now = System.currentTimeMillis();
+        boolean isDoubleClick = isDouble || (lastClickedEntry == this.entry && (now - lastClickTime) < 500);
+
         if (this.entry.isDirectory()) {
-            this.parentList.enterDirectory(this.entry.getFullPath());
-            return true;
+            if (isDoubleClick) {
+                lastClickTime = 0;
+                lastClickedEntry = null;
+                this.parentList.enterDirectory(this.entry.getFullPath());
+                return true;
+            } else {
+                lastClickTime = now;
+                lastClickedEntry = this.entry;
+                this.parentList.setLastSelectedEntry(this.entry, this.listIndex);
+                this.parentList.getParentGui().onSelectionChange(this.entry);
+                return true;
+            }
         }
 
         if (this.entry.isSchematic()) {
             this.parentList.setLastSelectedEntry(this.entry, this.listIndex);
-            if (isDouble) {
+            this.parentList.getParentGui().onSelectionChange(this.entry);
+            if (isDoubleClick) {
                 this.parentList.getParentGui().onSchematicDoubleClicked(this.entry);
+                lastClickTime = 0;
+                lastClickedEntry = null;
+            } else {
+                lastClickTime = now;
+                lastClickedEntry = this.entry;
             }
             return true;
         }

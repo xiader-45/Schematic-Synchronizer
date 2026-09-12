@@ -8,6 +8,9 @@ import fi.dy.masa.malilib.render.RenderUtils;
 import net.minecraft.client.input.MouseButtonEvent;
 
 public class WidgetUploadBrowserEntry extends WidgetListEntryBase<LocalFileEntry> {
+    private static long lastClickTime = 0;
+    private static LocalFileEntry lastClickedEntry = null;
+
     private final WidgetListUploadBrowser parentList;
     private final boolean isOdd;
 
@@ -47,11 +50,9 @@ public class WidgetUploadBrowserEntry extends WidgetListEntryBase<LocalFileEntry
             String dirText = "§6" + this.entry.getName() + "/";
             this.drawString(ctx, iconX + 16, textY, 0xFFFFAA00, dirText);
 
-            if (this.entry.getFileCount() > 0) {
-                String countStr = "§7(" + this.entry.getFileCount() + ")";
-                int countW = this.getStringWidth(countStr);
-                this.drawString(ctx, this.x + this.width - countW - 6, textY, 0xFFAAAAAA, countStr);
-            }
+            String countStr = "§7(" + this.entry.getFileCount() + ")";
+            int countW = this.getStringWidth(countStr);
+            this.drawString(ctx, this.x + this.width - countW - 6, textY, 0xFFAAAAAA, countStr);
         } else {
             String lower = this.entry.getName().toLowerCase();
             if (lower.endsWith(".litematic")) {
@@ -77,16 +78,33 @@ public class WidgetUploadBrowserEntry extends WidgetListEntryBase<LocalFileEntry
             return false;
         }
 
-        if (isDouble) {
-            if (this.entry.isUp()) {
-                this.parentList.goUp();
-                return true;
-            } else if (this.entry.isDirectory()) {
+        if (this.entry.isUp()) {
+            this.parentList.goUp();
+            return true;
+        }
+
+        long now = System.currentTimeMillis();
+        boolean isDoubleClick = isDouble || (lastClickedEntry == this.entry && (now - lastClickTime) < 500);
+
+        if (this.entry.isDirectory()) {
+            if (isDoubleClick) {
+                lastClickTime = 0;
+                lastClickedEntry = null;
                 this.parentList.enterDirectory(this.entry.getPath());
+                return true;
+            } else {
+                lastClickTime = now;
+                lastClickedEntry = this.entry;
+                boolean shift = GuiBase.isShiftDown();
+                boolean ctrl = GuiBase.isCtrlDown();
+                this.parentList.handleEntrySelection(this.entry, shift || ctrl);
                 return true;
             }
         }
 
+        // Regular file selection
+        lastClickTime = now;
+        lastClickedEntry = this.entry;
         boolean shift = GuiBase.isShiftDown();
         boolean ctrl = GuiBase.isCtrlDown();
         this.parentList.handleEntrySelection(this.entry, shift || ctrl);

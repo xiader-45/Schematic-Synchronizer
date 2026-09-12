@@ -58,6 +58,7 @@ public class ClientSchematicManager {
 
     private final List<ServerSchematicInfo> serverSchematics = new ArrayList<>();
     private final Map<String, ServerSchematicInfo> schematicMap = new ConcurrentHashMap<>();
+    private final Set<String> serverDirectories = ConcurrentHashMap.newKeySet();
     private final List<PlayerPlacementInfo> playerPlacements = new ArrayList<>();
     private final Map<String, List<PlayerPlacementInfo>> placementsBySchematic = new ConcurrentHashMap<>();
     private final Map<UUID, String> activePlacementToSchematicId = new ConcurrentHashMap<>();
@@ -74,6 +75,10 @@ public class ClientSchematicManager {
 
     public String getLastServerDirectory() {
         return this.lastServerDirectory;
+    }
+
+    public Set<String> getServerDirectories() {
+        return Collections.unmodifiableSet(this.serverDirectories);
     }
 
     public void init() {
@@ -120,12 +125,16 @@ public class ClientSchematicManager {
         }, List.of(SchematicPlacementEventFlag.ALL_EVENTS));
     }
 
-    public void updateCatalog(List<ServerSchematicInfo> schematics, List<PlayerPlacementInfo> placements, String serverDir) {
+    public void updateCatalog(List<ServerSchematicInfo> schematics, List<PlayerPlacementInfo> placements, String serverDir, List<String> directories) {
         if (serverDir != null && !serverDir.isEmpty()) {
             this.lastServerDirectory = serverDir;
         }
         this.serverSchematics.clear();
         this.schematicMap.clear();
+        this.serverDirectories.clear();
+        if (directories != null) {
+            this.serverDirectories.addAll(directories);
+        }
         this.serverSchematics.addAll(schematics);
         for (ServerSchematicInfo s : schematics) {
             this.schematicMap.put(s.getId(), s);

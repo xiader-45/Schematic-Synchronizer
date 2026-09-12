@@ -125,6 +125,35 @@ public class WidgetListServerBrowser extends WidgetListBase<ServerBrowserEntry, 
         Map<String, Integer> subDirs = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         List<ServerBrowserEntry> files = new ArrayList<>();
 
+        // Register all server directories (including empty ones)
+        Collection<String> allServerDirs = ClientSchematicManager.getInstance().getServerDirectories();
+        for (String d : allServerDirs) {
+            String dirPath = d.replace('\\', '/');
+            while (dirPath.startsWith("/")) {
+                dirPath = dirPath.substring(1);
+            }
+            while (dirPath.endsWith("/")) {
+                dirPath = dirPath.substring(0, dirPath.length() - 1);
+            }
+            if (dirPath.isEmpty()) continue;
+
+            if (cur.isEmpty()) {
+                int slashIdx = dirPath.indexOf('/');
+                String sub = (slashIdx < 0) ? dirPath : dirPath.substring(0, slashIdx);
+                subDirs.putIfAbsent(sub, 0);
+            } else {
+                if (dirPath.startsWith(cur)) {
+                    String rem = dirPath.substring(cur.length());
+                    int slashIdx = rem.indexOf('/');
+                    String sub = (slashIdx < 0) ? rem : rem.substring(0, slashIdx);
+                    if (!sub.isEmpty()) {
+                        subDirs.putIfAbsent(sub, 0);
+                    }
+                }
+            }
+        }
+
+        // Count schematics in subdirectories and collect current directory files
         for (ServerSchematicInfo s : allSchematics) {
             String id = s.getId().replace('\\', '/');
             if (id.startsWith("/")) {
@@ -291,9 +320,17 @@ public class WidgetListServerBrowser extends WidgetListBase<ServerBrowserEntry, 
         super.drawContents(ctx, mouseX, mouseY, partialTicks);
 
         // Empty folder / no schematics message
-        if (this.listContents.isEmpty()) {
+        boolean hasContent = false;
+        for (ServerBrowserEntry entry : this.listContents) {
+            if (!entry.isUp()) {
+                hasContent = true;
+                break;
+            }
+        }
+
+        if (!hasContent) {
             int cy = this.posY + this.totalHeight / 2 - 20;
-            if (ClientSchematicManager.getInstance().getServerSchematics().isEmpty()) {
+            if (ClientSchematicManager.getInstance().getServerSchematics().isEmpty() && ClientSchematicManager.getInstance().getServerDirectories().isEmpty()) {
                 String dir = ClientSchematicManager.getInstance().getLastServerDirectory();
                 drawCentered(ctx, cy, 0xFFFF5555, StringUtils.translate("schematic_synchronizer.gui.browser.empty_server"));
                 if (dir != null && !dir.isEmpty()) {
