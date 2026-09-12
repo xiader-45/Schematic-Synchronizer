@@ -72,12 +72,10 @@ public class ServerSchematicManager {
         try {
             if (!Files.exists(schematicsDir)) {
                 Files.createDirectories(schematicsDir);
-                Path readme = schematicsDir.resolve("README.txt");
-                if (!Files.exists(readme)) {
-                    Files.writeString(readme,
-                            "Поместите сюда файлы .litematic для отображения в Litematica на клиентах.\n" +
-                            "Place your .litematic / .schem schematic files here.\n");
-                }
+            }
+            Path readme = schematicsDir.resolve("README.txt");
+            if (Files.exists(readme)) {
+                Files.deleteIfExists(readme);
             }
         } catch (IOException ignored) {
         }

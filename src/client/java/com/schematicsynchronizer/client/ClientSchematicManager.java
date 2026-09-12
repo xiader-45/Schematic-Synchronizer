@@ -39,10 +39,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 public class ClientSchematicManager {
     private static final ClientSchematicManager INSTANCE = new ClientSchematicManager();
@@ -164,10 +166,31 @@ public class ClientSchematicManager {
     }
 
     public Path getCacheDirectory() {
-        Path base = FabricLoader.getInstance().getGameDir().resolve("schematics").resolve(".server_cache");
+        Path base = FabricLoader.getInstance().getGameDir().resolve("schematics").resolve("server");
         try {
             if (!Files.exists(base)) {
                 Files.createDirectories(base);
+            }
+            Path legacy = FabricLoader.getInstance().getGameDir().resolve("schematics").resolve(".server_cache");
+            if (Files.exists(legacy) && Files.isDirectory(legacy)) {
+                try (Stream<Path> stream = Files.walk(legacy)) {
+                    stream.forEach(src -> {
+                        if (Files.isRegularFile(src)) {
+                            Path rel = legacy.relativize(src);
+                            Path dest = base.resolve(rel);
+                            try {
+                                if (dest.getParent() != null && !Files.exists(dest.getParent())) {
+                                    Files.createDirectories(dest.getParent());
+                                }
+                                if (!Files.exists(dest)) {
+                                    Files.move(src, dest, StandardCopyOption.REPLACE_EXISTING);
+                                }
+                            } catch (Exception ignored) {
+                            }
+                        }
+                    });
+                } catch (Exception ignored) {
+                }
             }
         } catch (IOException ignored) {
         }
