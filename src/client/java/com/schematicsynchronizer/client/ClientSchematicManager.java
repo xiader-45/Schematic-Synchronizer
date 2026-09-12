@@ -119,7 +119,7 @@ public class ClientSchematicManager {
         }
         this.initialized = true;
 
-        loadPlacementStates();
+        cleanLegacyClientStateFiles(getCacheDirectory());
         scanLocalSchematicsAsync();
 
         SchematicPlacementEventHandler.getInstance().registerSchematicPlacementEventListener(new ISchematicPlacementEventListener() {
@@ -379,7 +379,6 @@ public class ClientSchematicManager {
         for (ServerSchematicInfo s : schematics) {
             this.schematicMap.put(s.getId(), s);
         }
-        this.loadPlacementStates();
         this.updatePlacements(placements);
         this.checkAndCleanPlacements();
         this.scanLocalSchematicsAsync();
@@ -390,13 +389,19 @@ public class ClientSchematicManager {
         this.playerPlacements.clear();
         this.placementsBySchematic.clear();
         this.playerPlacements.addAll(placements);
+        Minecraft mc = Minecraft.getInstance();
+        UUID myUuid = (mc != null && mc.getUser() != null) ? mc.getUser().getProfileId() : null;
+
         for (PlayerPlacementInfo p : placements) {
             this.placementsBySchematic.computeIfAbsent(p.getSchematicId(), k -> new ArrayList<>()).add(p);
             if (p.getPlacementId() != null && p.getTimestamp() > 0) {
-                this.placementTimestamps.putIfAbsent(p.getPlacementId(), p.getTimestamp());
+                this.placementTimestamps.put(p.getPlacementId(), p.getTimestamp());
+            }
+            if (p.getPlacementId() != null && myUuid != null && p.getOwnerUuid().equals(myUuid)) {
+                this.sharedPlacements.add(p.getPlacementId());
+                this.activePlacementToSchematicId.put(p.getPlacementId(), p.getSchematicId());
             }
         }
-        this.savePlacementStates();
         this.notifyGuiRefresh();
     }
 
@@ -502,6 +507,7 @@ public class ClientSchematicManager {
             }
         } catch (IOException ignored) {
         }
+        cleanLegacyClientStateFiles(base);
         return base;
     }
 
@@ -850,7 +856,6 @@ public class ClientSchematicManager {
             this.placedFromServerPlacements.add(placement.getHashId());
             long now = System.currentTimeMillis();
             this.placementTimestamps.put(placement.getHashId(), now);
-            savePlacementStates();
             DataManager.getSchematicPlacementManager().addSchematicPlacement(placement, true);
             DataManager.getSchematicPlacementManager().setSelectedSchematicPlacement(placement);
             syncPlacementToServer(placement);
@@ -878,13 +883,34 @@ public class ClientSchematicManager {
             } catch (Exception ignored) {
             }
         }
+        if (id != null) {
+            for (PlayerPlacementInfo p : this.playerPlacements) {
+                if (p.getPlacementId().equals(id) && this.schematicMap.containsKey(p.getSchematicId())) {
+                    this.placedFromServerPlacements.add(id);
+                    return true;
+                }
+            }
+        }
         return false;
     }
 
     public boolean isPlacementShared(SchematicPlacement placement) {
         if (placement == null) return false;
         UUID id = placement.getHashId();
-        return id != null && this.sharedPlacements.contains(id);
+        if (id != null && this.sharedPlacements.contains(id)) {
+            return true;
+        }
+        Minecraft mc = Minecraft.getInstance();
+        if (mc != null && mc.getUser() != null && id != null) {
+            UUID myUuid = mc.getUser().getProfileId();
+            for (PlayerPlacementInfo p : this.playerPlacements) {
+                if (p.getOwnerUuid().equals(myUuid) && p.getPlacementId().equals(id)) {
+                    this.sharedPlacements.add(id);
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public void setPlacementShared(SchematicPlacement placement, boolean shared) {
@@ -894,11 +920,9 @@ public class ClientSchematicManager {
 
         if (shared) {
             this.sharedPlacements.add(id);
-            savePlacementStates();
             sharePlacementToServer(placement);
         } else {
             this.sharedPlacements.remove(id);
-            savePlacementStates();
             unsharePlacementFromServer(placement);
         }
     }
@@ -950,88 +974,12 @@ public class ClientSchematicManager {
         }
     }
 
-    private void loadPlacementStates() {
+    private static void cleanLegacyClientStateFiles(Path dir) {
+        if (dir == null || !Files.exists(dir)) return;
         try {
-            Path cacheDir = getCacheDirectory();
-            loadUuidSet(cacheDir.resolve("shared_placements.json"), this.sharedPlacements);
-            loadUuidSet(cacheDir.resolve("placed_from_server.json"), this.placedFromServerPlacements);
-            loadTimestampMap(cacheDir.resolve("placement_timestamps.json"), this.placementTimestamps);
-        } catch (Exception ignored) {
-        }
-    }
-
-    private void savePlacementStates() {
-        try {
-            Path cacheDir = getCacheDirectory();
-            saveUuidSet(cacheDir.resolve("shared_placements.json"), this.sharedPlacements);
-            saveUuidSet(cacheDir.resolve("placed_from_server.json"), this.placedFromServerPlacements);
-            saveTimestampMap(cacheDir.resolve("placement_timestamps.json"), this.placementTimestamps);
-        } catch (Exception ignored) {
-        }
-    }
-
-    private void loadTimestampMap(Path file, Map<UUID, Long> map) {
-        if (!Files.exists(file)) return;
-        try (Reader reader = Files.newBufferedReader(file)) {
-            JsonElement el = JsonParser.parseReader(reader);
-            if (el != null && el.isJsonObject()) {
-                map.clear();
-                for (Map.Entry<String, JsonElement> entry : el.getAsJsonObject().entrySet()) {
-                    try {
-                        map.put(UUID.fromString(entry.getKey()), entry.getValue().getAsLong());
-                    } catch (Exception ignored) {
-                    }
-                }
-            }
-        } catch (Exception ignored) {
-        }
-    }
-
-    private void saveTimestampMap(Path file, Map<UUID, Long> map) {
-        try {
-            if (file.getParent() != null && !Files.exists(file.getParent())) {
-                Files.createDirectories(file.getParent());
-            }
-            JsonObject obj = new JsonObject();
-            for (Map.Entry<UUID, Long> entry : map.entrySet()) {
-                obj.addProperty(entry.getKey().toString(), entry.getValue());
-            }
-            try (Writer writer = Files.newBufferedWriter(file)) {
-                new Gson().toJson(obj, writer);
-            }
-        } catch (Exception ignored) {
-        }
-    }
-
-    private void loadUuidSet(Path file, Set<UUID> set) {
-        if (!Files.exists(file)) return;
-        try (Reader reader = Files.newBufferedReader(file)) {
-            JsonElement el = JsonParser.parseReader(reader);
-            if (el != null && el.isJsonArray()) {
-                set.clear();
-                for (JsonElement item : el.getAsJsonArray()) {
-                    try {
-                        set.add(UUID.fromString(item.getAsString()));
-                    } catch (Exception ignored) {
-                    }
-                }
-            }
-        } catch (Exception ignored) {
-        }
-    }
-
-    private void saveUuidSet(Path file, Set<UUID> set) {
-        try {
-            if (file.getParent() != null && !Files.exists(file.getParent())) {
-                Files.createDirectories(file.getParent());
-            }
-            JsonArray arr = new JsonArray();
-            for (UUID id : set) {
-                arr.add(id.toString());
-            }
-            try (Writer writer = Files.newBufferedWriter(file)) {
-                new Gson().toJson(arr, writer);
-            }
+            Files.deleteIfExists(dir.resolve("shared_placements.json"));
+            Files.deleteIfExists(dir.resolve("placed_from_server.json"));
+            Files.deleteIfExists(dir.resolve("placement_timestamps.json"));
         } catch (Exception ignored) {
         }
     }
@@ -1117,7 +1065,6 @@ public class ClientSchematicManager {
         if (timestamp <= 0) {
             timestamp = System.currentTimeMillis();
             this.placementTimestamps.put(placement.getHashId(), timestamp);
-            savePlacementStates();
         }
 
         if (ClientPlayNetworking.canSend(PublishPlacementPayload.TYPE)) {
@@ -1147,7 +1094,6 @@ public class ClientSchematicManager {
             this.placedFromServerPlacements.remove(hashId);
             this.sharedPlacements.remove(hashId);
             this.placementTimestamps.remove(hashId);
-            savePlacementStates();
         }
         if (wasServer || wasShared) {
             String schematicId = getSchematicIdForPlacement(placement);

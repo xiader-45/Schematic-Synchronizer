@@ -9,6 +9,7 @@ import net.minecraft.server.level.ServerPlayer;
 public class ModServerHandler {
     public static void init() {
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
+            ServerConfig.getInstance().load();
             ServerSchematicManager.getInstance().init(server);
             ServerPlacementManager.getInstance().load();
         });
@@ -19,6 +20,7 @@ public class ModServerHandler {
 
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             ServerPlacementManager.getInstance().save();
+            ServerConfig.getInstance().save();
         });
 
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
@@ -47,6 +49,9 @@ public class ModServerHandler {
         ServerPlayNetworking.registerGlobalReceiver(PublishPlacementPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
             context.server().execute(() -> {
+                if (!ServerConfig.getInstance().isSyncPlacements()) {
+                    return;
+                }
                 // Ensure the payload claims to belong to the sender (security)
                 if (payload.placement() != null && payload.placement().getOwnerUuid().equals(player.getUUID())) {
                     ServerPlacementManager.getInstance().addOrUpdatePlacement(context.server(), payload.placement());
@@ -64,6 +69,9 @@ public class ModServerHandler {
         ServerPlayNetworking.registerGlobalReceiver(UploadSchematicChunkPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
             context.server().execute(() -> {
+                if (!ServerConfig.getInstance().isAllowUploads()) {
+                    return;
+                }
                 ServerSchematicManager.getInstance().handleUploadChunk(player, payload, context.server());
             });
         });
@@ -71,6 +79,9 @@ public class ModServerHandler {
         ServerPlayNetworking.registerGlobalReceiver(CreateServerDirectoryPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
             context.server().execute(() -> {
+                if (!ServerConfig.getInstance().isAllowCreateDirectories()) {
+                    return;
+                }
                 ServerSchematicManager.getInstance().handleCreateDirectory(player, payload.directoryPath(), context.server());
             });
         });

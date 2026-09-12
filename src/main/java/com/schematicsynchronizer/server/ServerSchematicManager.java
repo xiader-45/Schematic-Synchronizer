@@ -52,6 +52,18 @@ public class ServerSchematicManager {
             base = FabricLoader.getInstance().getGameDir();
         }
 
+        String custom = ServerConfig.getInstance().getSchematicsDirectory();
+        if (custom != null && !custom.trim().isEmpty()) {
+            Path customPath = Paths.get(custom.trim());
+            if (customPath.isAbsolute()) {
+                schematicsDir = customPath.normalize();
+                return;
+            } else {
+                schematicsDir = base.resolve(customPath).toAbsolutePath().normalize();
+                return;
+            }
+        }
+
         Path cand1 = base.resolve("schematics").toAbsolutePath().normalize();
         Path cand2 = base.resolve("Schematics").toAbsolutePath().normalize();
         Path cand3 = Paths.get("schematics").toAbsolutePath().normalize();
@@ -323,6 +335,11 @@ public class ServerSchematicManager {
         int chunkIdx = payload.chunkIndex();
         int total = payload.totalChunks();
         byte[] data = payload.data();
+
+        long maxBytes = (long) ServerConfig.getInstance().getMaxUploadFileSizeMB() * 1024L * 1024L;
+        if ((long) total * CHUNK_SIZE > maxBytes + CHUNK_SIZE) {
+            return;
+        }
 
         Map<Integer, byte[]> chunks = uploadChunks.computeIfAbsent(id, k -> new ConcurrentHashMap<>());
         chunks.put(chunkIdx, data);
