@@ -2,6 +2,7 @@ package com.schematicsynchronizer.client;
 
 import com.schematicsynchronizer.network.SchematicChunkPayload;
 import com.schematicsynchronizer.network.SchematicListPayload;
+import com.schematicsynchronizer.network.SyncHologramGroupsPayload;
 import com.schematicsynchronizer.network.SyncPlacementsPayload;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
@@ -30,8 +31,15 @@ public class SchematicSynchronizerClient implements ClientModInitializer {
             });
         });
 
+        ClientPlayNetworking.registerGlobalReceiver(SyncHologramGroupsPayload.TYPE, (payload, context) -> {
+            context.client().execute(() -> {
+                ClientHologramGroupManager.getInstance().handleSyncGroups(payload);
+            });
+        });
+
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             ClientSchematicManager.getInstance().requestRefresh();
+            ClientHologramGroupManager.getInstance().requestGroups();
         });
     }
 }

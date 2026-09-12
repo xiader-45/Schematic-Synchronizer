@@ -136,26 +136,31 @@ public class ClientSchematicManager {
             @Override
             public void onSetOrigin(SchematicPlacement placement, BlockPos origin) {
                 syncPlacementToServer(placement);
+                ClientHologramGroupManager.getInstance().onPlacementModified(placement);
             }
 
             @Override
             public void onSetRotation(SchematicPlacement placement, Rotation rotation) {
                 syncPlacementToServer(placement);
+                ClientHologramGroupManager.getInstance().onPlacementModified(placement);
             }
 
             @Override
             public void onSetMirror(SchematicPlacement placement, Mirror mirror) {
                 syncPlacementToServer(placement);
+                ClientHologramGroupManager.getInstance().onPlacementModified(placement);
             }
 
             @Override
             public void onPlacementUpdated(SchematicPlacement placement) {
                 syncPlacementToServer(placement);
+                ClientHologramGroupManager.getInstance().onPlacementModified(placement);
             }
 
             @Override
             public void onPlacementReset(SchematicPlacement placement) {
                 syncPlacementToServer(placement);
+                ClientHologramGroupManager.getInstance().onPlacementModified(placement);
             }
         }, List.of(SchematicPlacementEventFlag.ALL_EVENTS));
     }
@@ -509,6 +514,24 @@ public class ClientSchematicManager {
         }
         cleanLegacyClientStateFiles(base);
         return base;
+    }
+
+    public Path getLocalFilePath(String id) {
+        if (id == null) return null;
+        ServerSchematicInfo info = getSchematic(id);
+        if (info != null) {
+            return getLocalFilePath(info);
+        }
+        return getCacheDirectory().resolve(id);
+    }
+
+    public void downloadSchematic(String id, Consumer<Path> onComplete) {
+        if (id == null) return;
+        ServerSchematicInfo info = getSchematic(id);
+        if (info == null) {
+            info = new ServerSchematicInfo(id, id, 0L, "", 0L);
+        }
+        downloadSchematic(info, onComplete);
     }
 
     public Path getLocalFilePath(ServerSchematicInfo info) {

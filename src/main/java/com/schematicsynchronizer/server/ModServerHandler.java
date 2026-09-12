@@ -12,6 +12,7 @@ public class ModServerHandler {
             ServerConfig.getInstance().load();
             ServerSchematicManager.getInstance().init(server);
             ServerPlacementManager.getInstance().load();
+            ServerHologramGroupManager.getInstance().init(server);
         });
 
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
@@ -25,6 +26,7 @@ public class ModServerHandler {
 
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             ServerSchematicManager.getInstance().sendCatalogToPlayer(handler.getPlayer());
+            ServerHologramGroupManager.getInstance().sendGroupsToPlayer(handler.getPlayer(), null);
         });
 
         registerNetworkHandlers();
@@ -83,6 +85,56 @@ public class ModServerHandler {
                     return;
                 }
                 ServerSchematicManager.getInstance().handleCreateDirectory(player, payload.directoryPath(), context.server());
+            });
+        });
+
+        // Hologram Group Networking
+        ServerPlayNetworking.registerGlobalReceiver(RequestHologramGroupsPayload.TYPE, (payload, context) -> {
+            ServerPlayer player = context.player();
+            context.server().execute(() -> {
+                ServerHologramGroupManager.getInstance().sendGroupsToPlayer(player, payload.dimension());
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(CreateHologramGroupPayload.TYPE, (payload, context) -> {
+            ServerPlayer player = context.player();
+            context.server().execute(() -> {
+                ServerHologramGroupManager.getInstance().createGroup(context.server(), player, payload);
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(JoinHologramGroupPayload.TYPE, (payload, context) -> {
+            ServerPlayer player = context.player();
+            context.server().execute(() -> {
+                ServerHologramGroupManager.getInstance().joinGroup(context.server(), player, payload.groupId());
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(LeaveHologramGroupPayload.TYPE, (payload, context) -> {
+            ServerPlayer player = context.player();
+            context.server().execute(() -> {
+                ServerHologramGroupManager.getInstance().leaveGroup(context.server(), player, payload.groupId(), payload.action());
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(KickMemberHologramGroupPayload.TYPE, (payload, context) -> {
+            ServerPlayer player = context.player();
+            context.server().execute(() -> {
+                ServerHologramGroupManager.getInstance().kickMember(context.server(), player, payload.groupId(), payload.memberUuid());
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(TransferOwnershipHologramGroupPayload.TYPE, (payload, context) -> {
+            ServerPlayer player = context.player();
+            context.server().execute(() -> {
+                ServerHologramGroupManager.getInstance().transferOwnership(context.server(), player, payload.groupId(), payload.targetUuid());
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(UpdateHologramPlacementPayload.TYPE, (payload, context) -> {
+            ServerPlayer player = context.player();
+            context.server().execute(() -> {
+                ServerHologramGroupManager.getInstance().updatePlacement(context.server(), player, payload);
             });
         });
     }

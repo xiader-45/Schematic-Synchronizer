@@ -12,9 +12,18 @@ public class ModPackets {
         PayloadTypeRegistry.serverboundPlay().register(UploadSchematicChunkPayload.TYPE, UploadSchematicChunkPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(CreateServerDirectoryPayload.TYPE, CreateServerDirectoryPayload.CODEC);
 
+        PayloadTypeRegistry.serverboundPlay().register(RequestHologramGroupsPayload.TYPE, RequestHologramGroupsPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(CreateHologramGroupPayload.TYPE, CreateHologramGroupPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(JoinHologramGroupPayload.TYPE, JoinHologramGroupPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(LeaveHologramGroupPayload.TYPE, LeaveHologramGroupPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(KickMemberHologramGroupPayload.TYPE, KickMemberHologramGroupPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(TransferOwnershipHologramGroupPayload.TYPE, TransferOwnershipHologramGroupPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(UpdateHologramPlacementPayload.TYPE, UpdateHologramPlacementPayload.CODEC);
+
         // Clientbound (S2C)
         PayloadTypeRegistry.clientboundPlay().register(SchematicListPayload.TYPE, SchematicListPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(SchematicChunkPayload.TYPE, SchematicChunkPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(SyncPlacementsPayload.TYPE, SyncPlacementsPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(SyncHologramGroupsPayload.TYPE, SyncHologramGroupsPayload.CODEC);
     }
 }

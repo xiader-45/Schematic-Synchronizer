@@ -1,8 +1,11 @@
 package com.schematicsynchronizer.client.gui;
 
 import com.schematicsynchronizer.client.ClientSchematicManager;
+import com.schematicsynchronizer.client.ClientHologramGroupManager;
+
 import com.schematicsynchronizer.data.PlayerPlacementInfo;
 import com.schematicsynchronizer.data.ServerSchematicInfo;
+import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.gui.GuiListBase;
 import fi.dy.masa.malilib.gui.button.ButtonGeneric;
 import fi.dy.masa.malilib.render.GuiContext;
@@ -86,7 +89,17 @@ public class GuiServerPlacementsList extends GuiListBase<PlayerPlacementInfo, Wi
             x += filW + 4;
         }
 
-        // Button 4: "Обновить"
+        // Button 4: "Группы"
+        int totalGroups = ClientHologramGroupManager.getInstance().getGroups().size();
+        String groupLabel = StringUtils.translate("schematic_synchronizer.gui.button.groups_count", totalGroups);
+        int grpW = this.getStringWidth(groupLabel) + 16;
+        ButtonGeneric btnGroups = new ButtonGeneric(x, y, grpW, 20, groupLabel);
+        addButton(btnGroups, (btn, mouse) -> {
+            GuiBase.openGui(new GuiHologramGroups(this));
+        });
+        x += grpW + 4;
+
+        // Button 5: "Обновить"
         String refLabel = StringUtils.translate("litematica.gui.button.material_list.refresh_list");
         int refW = this.getStringWidth(refLabel) + 16;
         ButtonGeneric btnRef = new ButtonGeneric(x, y, refW, 20, refLabel);

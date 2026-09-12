@@ -1,6 +1,8 @@
 package com.schematicsynchronizer.client.gui;
 
 import com.schematicsynchronizer.client.ClientSchematicManager;
+import com.schematicsynchronizer.client.ClientHologramGroupManager;
+
 import com.schematicsynchronizer.data.PlayerPlacementInfo;
 import com.schematicsynchronizer.data.ServerSchematicInfo;
 import fi.dy.masa.litematica.data.DataManager;
@@ -106,6 +108,16 @@ public class GuiServerSchematicsList extends GuiListBase<ServerBrowserEntry, Wid
             }
         });
         x += matW + 4;
+
+        // Button 4: "Группы"
+        int totalGroups = ClientHologramGroupManager.getInstance().getGroups().size();
+        String groupLabel = StringUtils.translate("schematic_synchronizer.gui.button.groups_count", totalGroups);
+        int grpW = this.getStringWidth(groupLabel) + 16;
+        ButtonGeneric btnGroups = new ButtonGeneric(x, y, grpW, 20, groupLabel);
+        addButton(btnGroups, (btn, mouse) -> {
+            GuiBase.openGui(new GuiHologramGroups(this));
+        });
+        x += grpW + 4;
 
         // Button 4: "Главное меню" (litematica.gui.button.change_menu.to_main_menu, Right aligned)
         String mmLabel = StringUtils.translate("litematica.gui.button.change_menu.to_main_menu");
