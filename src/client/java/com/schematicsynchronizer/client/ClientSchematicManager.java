@@ -36,6 +36,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -165,12 +167,44 @@ public class ClientSchematicManager {
         return list != null ? list : Collections.emptyList();
     }
 
+    public String getServerIdentifier() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getCurrentServer() != null && mc.getCurrentServer().ip != null && !mc.getCurrentServer().ip.isEmpty()) {
+            return sanitizeFolderName(mc.getCurrentServer().ip);
+        }
+        if (mc.hasSingleplayerServer()) {
+            return "singleplayer";
+        }
+        if (mc.getConnection() != null && mc.getConnection().getConnection() != null) {
+            SocketAddress addr = mc.getConnection().getConnection().getRemoteAddress();
+            if (addr instanceof InetSocketAddress inet) {
+                String host = inet.getHostString();
+                int port = inet.getPort();
+                return sanitizeFolderName(port == 25565 ? host : (host + "_" + port));
+            } else if (addr != null) {
+                return sanitizeFolderName(addr.toString());
+            }
+        }
+        return "default";
+    }
+
+    private static String sanitizeFolderName(String name) {
+        if (name == null || name.isEmpty()) return "default";
+        String clean = name.trim().replaceAll("[:\\\\/*?\"<>|]", "_");
+        while (clean.endsWith(".") || clean.endsWith(" ")) {
+            clean = clean.substring(0, clean.length() - 1);
+        }
+        return clean.isEmpty() ? "default" : clean;
+    }
+
     public Path getCacheDirectory() {
-        Path base = FabricLoader.getInstance().getGameDir().resolve("schematics").resolve("server");
+        String serverFolder = getServerIdentifier();
+        Path base = FabricLoader.getInstance().getGameDir().resolve("schematics").resolve("server").resolve(serverFolder);
         try {
             if (!Files.exists(base)) {
                 Files.createDirectories(base);
             }
+            // Migrate legacy .server_cache if it exists
             Path legacy = FabricLoader.getInstance().getGameDir().resolve("schematics").resolve(".server_cache");
             if (Files.exists(legacy) && Files.isDirectory(legacy)) {
                 try (Stream<Path> stream = Files.walk(legacy)) {
@@ -191,6 +225,20 @@ public class ClientSchematicManager {
                     });
                 } catch (Exception ignored) {
                 }
+            }
+            // Migrate any legacy root server files from schematics/server/
+            Path serverRoot = FabricLoader.getInstance().getGameDir().resolve("schematics").resolve("server");
+            try (Stream<Path> rootFiles = Files.list(serverRoot)) {
+                rootFiles.filter(Files::isRegularFile).forEach(file -> {
+                    try {
+                        Path dest = base.resolve(file.getFileName());
+                        if (!Files.exists(dest)) {
+                            Files.move(file, dest, StandardCopyOption.REPLACE_EXISTING);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                });
+            } catch (Exception ignored) {
             }
         } catch (IOException ignored) {
         }
