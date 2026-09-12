@@ -89,5 +89,8 @@
   "schematic_synchronizer.gui.owner_leave.desc1": "Вы являетесь владельцем группы «%s».",
   "schematic_synchronizer.gui.owner_leave.desc2": "В группе есть другие участники. Выберите действие:",
   "schematic_synchronizer.gui.owner_leave.delete_group": "Удалить группу",
-  "schematic_synchronizer.gui.owner_leave.transfer_random": "Выйти и передать права"
+  "schematic_synchronizer.gui.owner_leave.transfer_random": "Выйти и передать права",
+  "schematic_synchronizer.gui.button.delete_group_op": "Удалить (OP)",
+  "schematic_synchronizer.gui.manage_group.take_ownership_op": "Забрать права себе (OP)",
+  "schematic_synchronizer.gui.manage_group.delete_group": "Удалить группу"
 }

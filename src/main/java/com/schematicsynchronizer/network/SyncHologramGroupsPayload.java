@@ -9,7 +9,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import java.util.ArrayList;
 import java.util.List;
 
-public record SyncHologramGroupsPayload(String dimension, List<HologramGroupData> groups) implements CustomPacketPayload {
+public record SyncHologramGroupsPayload(String dimension, List<HologramGroupData> groups, boolean canOpManage) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<SyncHologramGroupsPayload> TYPE =
             new CustomPacketPayload.Type<>(SchematicSynchronizer.id("sync_hologram_groups"));
 
@@ -17,7 +17,11 @@ public record SyncHologramGroupsPayload(String dimension, List<HologramGroupData
             CustomPacketPayload.codec(SyncHologramGroupsPayload::write, SyncHologramGroupsPayload::new);
 
     public SyncHologramGroupsPayload(RegistryFriendlyByteBuf buf) {
-        this(buf.readUtf(), readGroups(buf));
+        this(buf.readUtf(), readGroups(buf), buf.readBoolean());
+    }
+
+    public SyncHologramGroupsPayload(String dimension, List<HologramGroupData> groups) {
+        this(dimension, groups, false);
     }
 
     private static List<HologramGroupData> readGroups(RegistryFriendlyByteBuf buf) {
@@ -37,6 +41,7 @@ public record SyncHologramGroupsPayload(String dimension, List<HologramGroupData
                 g.write(buf);
             }
         }
+        buf.writeBoolean(canOpManage);
     }
 
     @Override

@@ -13,6 +13,8 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.players.NameAndId;
+import net.minecraft.server.permissions.Permissions;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.LevelResource;
 
@@ -184,18 +186,40 @@ public class ServerHologramGroupManager {
         broadcastGroups(server, group.getDimension());
     }
 
+    public boolean canPlayerManageGroup(MinecraftServer server, ServerPlayer player, HologramGroupData group) {
+        if (group != null && group.isOwner(player.getUUID())) {
+            return true;
+        }
+        return isOpManagementAllowed(server, player);
+    }
+
+    public boolean isOpManagementAllowed(MinecraftServer server, ServerPlayer player) {
+        if (server == null || player == null) return false;
+        if (!ServerConfig.getInstance().isAllowOpGroupManagement()) {
+            return false;
+        }
+        return server.getPlayerList().isOp(new NameAndId(player.getGameProfile()))
+                || player.permissions().hasPermission(Permissions.COMMANDS_ADMIN)
+                || player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER);
+    }
+
     public void leaveGroup(MinecraftServer server, ServerPlayer player, String groupId, int action) {
         HologramGroupData group = findGroupById(groupId);
         if (group == null) return;
 
         UUID playerUuid = player.getUUID();
-        if (group.isOwner(playerUuid)) {
-            // Owner is leaving
-            if (action == LeaveHologramGroupPayload.ACTION_DELETE || group.getMembers().size() <= 1) {
-                // Delete group
-                deleteGroup(server, group);
-                broadcastGroups(server, group.getDimension());
-            } else if (action == LeaveHologramGroupPayload.ACTION_TRANSFER_RANDOM) {
+        boolean isOp = isOpManagementAllowed(server, player);
+        boolean isOwner = group.isOwner(playerUuid);
+
+        // If OP or owner chose to delete the group:
+        if (action == LeaveHologramGroupPayload.ACTION_DELETE && (isOwner || isOp)) {
+            deleteGroup(server, group);
+            broadcastGroups(server, group.getDimension());
+            return;
+        }
+
+        if (isOwner) {
+            if (action == LeaveHologramGroupPayload.ACTION_TRANSFER_RANDOM) {
                 // Transfer ownership to random member
                 List<Map.Entry<UUID, String>> otherMembers = new ArrayList<>();
                 for (Map.Entry<UUID, String> entry : group.getMembers().entrySet()) {
@@ -213,6 +237,9 @@ public class ServerHologramGroupManager {
                     deleteGroup(server, group);
                     broadcastGroups(server, group.getDimension());
                 }
+            } else {
+                deleteGroup(server, group);
+                broadcastGroups(server, group.getDimension());
             }
         } else {
             // Regular member is leaving
@@ -226,14 +253,20 @@ public class ServerHologramGroupManager {
         HologramGroupData group = findGroupById(groupId);
         if (group == null || targetUuid == null) return;
 
-        if (!group.isOwner(player.getUUID())) {
-            return; // Only owner can kick
+        if (!canPlayerManageGroup(server, player, group)) {
+            return;
         }
         if (group.isOwner(targetUuid)) {
-            return; // Cannot kick self
+            if (!isOpManagementAllowed(server, player)) {
+                return; // Normal owner cannot kick self
+            }
+            group.removeMember(targetUuid);
+            group.setOwner(player.getUUID(), player.getName().getString());
+            group.addMember(player.getUUID(), player.getName().getString());
+        } else {
+            group.removeMember(targetUuid);
         }
 
-        group.removeMember(targetUuid);
         saveGroup(server, group);
         broadcastGroups(server, group.getDimension());
     }
@@ -242,12 +275,21 @@ public class ServerHologramGroupManager {
         HologramGroupData group = findGroupById(groupId);
         if (group == null || newOwnerUuid == null) return;
 
-        if (!group.isOwner(player.getUUID())) {
-            return; // Only owner can transfer
+        if (!canPlayerManageGroup(server, player, group)) {
+            return;
         }
+
         String newOwnerName = group.getMembers().get(newOwnerUuid);
         if (newOwnerName == null) {
-            return; // Must be an existing member
+            ServerPlayer targetPlayer = server.getPlayerList().getPlayer(newOwnerUuid);
+            if (targetPlayer != null) {
+                newOwnerName = targetPlayer.getName().getString();
+            } else if (newOwnerUuid.equals(player.getUUID())) {
+                newOwnerName = player.getName().getString();
+            } else {
+                newOwnerName = "Player";
+            }
+            group.addMember(newOwnerUuid, newOwnerName);
         }
 
         group.setOwner(newOwnerUuid, newOwnerName);
@@ -259,8 +301,8 @@ public class ServerHologramGroupManager {
         HologramGroupData group = findGroupById(payload.groupId());
         if (group == null) return;
 
-        // Security: only owner can update placement!
-        if (!group.isOwner(player.getUUID())) {
+        // Security: owner or OP can update placement!
+        if (!canPlayerManageGroup(server, player, group)) {
             return;
         }
 
@@ -279,7 +321,9 @@ public class ServerHologramGroupManager {
                 ? dimension
                 : player.level().dimension().identifier().toString();
         List<HologramGroupData> list = getGroupsForDimension(dim);
-        ServerPlayNetworking.send(player, new SyncHologramGroupsPayload(dim, list));
+        MinecraftServer server = player.level().getServer();
+        boolean canOp = isOpManagementAllowed(server, player);
+        ServerPlayNetworking.send(player, new SyncHologramGroupsPayload(dim, list, canOp));
     }
 
     public void broadcastGroups(MinecraftServer server, String dimension) {

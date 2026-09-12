@@ -89,5 +89,8 @@
   "schematic_synchronizer.gui.owner_leave.desc1": "Ви є власником групи «%s».",
   "schematic_synchronizer.gui.owner_leave.desc2": "У групі є інші учасники. Виберіть дію:",
   "schematic_synchronizer.gui.owner_leave.delete_group": "Видалити групу",
-  "schematic_synchronizer.gui.owner_leave.transfer_random": "Вийти та передати права"
+  "schematic_synchronizer.gui.owner_leave.transfer_random": "Вийти та передати права",
+  "schematic_synchronizer.gui.button.delete_group_op": "Видалити (OP)",
+  "schematic_synchronizer.gui.manage_group.take_ownership_op": "Забрати права собі (OP)",
+  "schematic_synchronizer.gui.manage_group.delete_group": "Видалити групу"
 }

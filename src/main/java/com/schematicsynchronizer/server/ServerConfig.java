@@ -21,6 +21,7 @@ public class ServerConfig {
     private boolean allowCreateDirectories = true;
     private int maxUploadFileSizeMB = 50;
     private boolean syncPlacements = true;
+    private boolean allowOpGroupManagement = true;
 
     public static ServerConfig getInstance() {
         return INSTANCE;
@@ -54,6 +55,9 @@ public class ServerConfig {
             if (obj.has("syncPlacements")) {
                 this.syncPlacements = obj.get("syncPlacements").getAsBoolean();
             }
+            if (obj.has("allowOpGroupManagement")) {
+                this.allowOpGroupManagement = obj.get("allowOpGroupManagement").getAsBoolean();
+            }
         } catch (Exception ignored) {
         }
     }
@@ -71,6 +75,7 @@ public class ServerConfig {
             obj.addProperty("allowCreateDirectories", this.allowCreateDirectories);
             obj.addProperty("maxUploadFileSizeMB", this.maxUploadFileSizeMB);
             obj.addProperty("syncPlacements", this.syncPlacements);
+            obj.addProperty("allowOpGroupManagement", this.allowOpGroupManagement);
 
             try (Writer writer = Files.newBufferedWriter(path)) {
                 GSON.toJson(obj, writer);
@@ -117,5 +122,13 @@ public class ServerConfig {
 
     public void setSyncPlacements(boolean syncPlacements) {
         this.syncPlacements = syncPlacements;
+    }
+
+    public boolean isAllowOpGroupManagement() {
+        return allowOpGroupManagement;
+    }
+
+    public void setAllowOpGroupManagement(boolean allowOpGroupManagement) {
+        this.allowOpGroupManagement = allowOpGroupManagement;
     }
 }

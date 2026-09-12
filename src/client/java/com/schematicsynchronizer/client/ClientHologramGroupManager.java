@@ -31,6 +31,7 @@ public class ClientHologramGroupManager {
     };
 
     private String currentDimension = "minecraft:overworld";
+    private boolean canOpManage = false;
     private final List<HologramGroupData> groups = new ArrayList<>();
     private final Map<UUID, String> placementToGroupId = new ConcurrentHashMap<>();
     private final Map<String, UUID> groupToPlacementId = new ConcurrentHashMap<>();
@@ -47,6 +48,10 @@ public class ClientHologramGroupManager {
 
     public List<HologramGroupData> getGroups() {
         return Collections.unmodifiableList(groups);
+    }
+
+    public boolean canOpManage() {
+        return canOpManage;
     }
 
     public String getCurrentDimension() {
@@ -138,7 +143,7 @@ public class ClientHologramGroupManager {
         if (mc.player == null) return;
         UUID myUuid = mc.getUser().getProfileId();
 
-        if (group.isOwner(myUuid)) {
+        if (group.isOwner(myUuid) || canOpManage) {
             // Owner is modifying: send update to server
             if (ClientPlayNetworking.canSend(UpdateHologramPlacementPayload.TYPE)) {
                 ClientPlayNetworking.send(new UpdateHologramPlacementPayload(
@@ -162,6 +167,7 @@ public class ClientHologramGroupManager {
 
     public void handleSyncGroups(SyncHologramGroupsPayload payload) {
         this.currentDimension = payload.dimension();
+        this.canOpManage = payload.canOpManage();
         this.groups.clear();
         if (payload.groups() != null) {
             this.groups.addAll(payload.groups());

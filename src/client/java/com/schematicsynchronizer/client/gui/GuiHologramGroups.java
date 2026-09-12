@@ -48,6 +48,8 @@ public class GuiHologramGroups extends GuiListBase<HologramGroupData, WidgetHolo
 
         boolean isMember = (selected != null && myUuid != null && selected.isMember(myUuid));
         boolean isOwner = (selected != null && myUuid != null && selected.isOwner(myUuid));
+        boolean isOp = ClientHologramGroupManager.getInstance().canOpManage();
+        boolean canManage = isOwner || isOp;
 
         // Button 1: Join / Leave
         if (selected != null && isMember) {
@@ -79,17 +81,28 @@ public class GuiHologramGroups extends GuiListBase<HologramGroupData, WidgetHolo
             x += joinW + 4;
         }
 
-        // Button 2: Manage (Owner only)
+        // Button 2: Manage (Owner or OP)
         String manageLabel = StringUtils.translate("schematic_synchronizer.gui.button.manage_group");
         int manW = this.getStringWidth(manageLabel) + 16;
         ButtonGeneric btnManage = new ButtonGeneric(x, y, manW, 20, manageLabel);
-        btnManage.setEnabled(isOwner);
+        btnManage.setEnabled(selected != null && canManage);
         addButton(btnManage, (btn, mouse) -> {
-            if (selected != null && isOwner) {
+            if (selected != null && canManage) {
                 GuiBase.openGui(new GuiManageHologramGroup(this, selected));
             }
         });
         x += manW + 4;
+
+        // Button 2.5: OP Delete Group
+        if (selected != null && isOp && !isOwner) {
+            String delLabel = StringUtils.translate("schematic_synchronizer.gui.button.delete_group_op");
+            int delW = this.getStringWidth(delLabel) + 16;
+            ButtonGeneric btnDel = new ButtonGeneric(x, y, delW, 20, delLabel);
+            addButton(btnDel, (btn, mouse) -> {
+                ClientHologramGroupManager.getInstance().leaveGroup(selected.getId(), LeaveHologramGroupPayload.ACTION_DELETE);
+            });
+            x += delW + 4;
+        }
 
         // Button 3: Create Group
         String createLabel = StringUtils.translate("schematic_synchronizer.gui.button.create_group");

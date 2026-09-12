@@ -89,5 +89,8 @@
   "schematic_synchronizer.gui.owner_leave.desc1": "You are the owner of group \"%s\".",
   "schematic_synchronizer.gui.owner_leave.desc2": "There are other members in the group. Choose an action:",
   "schematic_synchronizer.gui.owner_leave.delete_group": "Delete Group",
-  "schematic_synchronizer.gui.owner_leave.transfer_random": "Leave & Transfer Random"
+  "schematic_synchronizer.gui.owner_leave.transfer_random": "Leave & Transfer Random",
+  "schematic_synchronizer.gui.button.delete_group_op": "Delete (OP)",
+  "schematic_synchronizer.gui.manage_group.take_ownership_op": "Take Ownership (OP)",
+  "schematic_synchronizer.gui.manage_group.delete_group": "Delete Group"
 }
