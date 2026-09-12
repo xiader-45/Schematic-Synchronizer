@@ -167,6 +167,7 @@ public class ClientHologramGroupManager {
             this.groups.addAll(payload.groups());
         }
 
+        checkAndDownloadMissingGroupSchematics();
         syncWithLitematicaPlacements();
 
         if (this.guiRefreshCallback != null) {
@@ -286,14 +287,31 @@ public class ClientHologramGroupManager {
         placementToGroupId.put(placement.getHashId(), groupId);
     }
 
+    public void checkAndDownloadMissingGroupSchematics() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) return;
+        UUID myUuid = mc.getUser().getProfileId();
+
+        for (HologramGroupData group : this.groups) {
+            if (group.isMember(myUuid)) {
+                String schemId = group.getSchematicId();
+                if (!ClientSchematicManager.getInstance().isSchematicAvailableLocally(schemId)) {
+                    ClientSchematicManager.getInstance().downloadSchematic(schemId, path -> {
+                        syncWithLitematicaPlacements();
+                    });
+                }
+            }
+        }
+    }
+
     private void loadAndCreatePlacementForGroup(HologramGroupData group, boolean lock) {
-        Path localFile = ClientSchematicManager.getInstance().getLocalFilePath(group.getSchematicId());
+        Path localFile = ClientSchematicManager.getInstance().getValidLocalFilePath(group.getSchematicId());
         if (localFile != null && Files.exists(localFile)) {
             createPlacementFromPath(group, localFile, lock);
         } else {
             // Request download from server
             ClientSchematicManager.getInstance().downloadSchematic(group.getSchematicId(), path -> {
-                Path downloaded = ClientSchematicManager.getInstance().getLocalFilePath(group.getSchematicId());
+                Path downloaded = ClientSchematicManager.getInstance().getValidLocalFilePath(group.getSchematicId());
                 if (downloaded != null && Files.exists(downloaded)) {
                     createPlacementFromPath(group, downloaded, lock);
                 }

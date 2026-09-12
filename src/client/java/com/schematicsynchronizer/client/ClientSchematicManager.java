@@ -284,6 +284,7 @@ public class ClientSchematicManager {
             }
         }
 
+        ClientHologramGroupManager.getInstance().checkAndDownloadMissingGroupSchematics();
         if (updated) {
             notifyGuiRefresh();
         }
@@ -387,6 +388,7 @@ public class ClientSchematicManager {
         this.updatePlacements(placements);
         this.checkAndCleanPlacements();
         this.scanLocalSchematicsAsync();
+        ClientHologramGroupManager.getInstance().checkAndDownloadMissingGroupSchematics();
         this.notifyGuiRefresh();
     }
 
@@ -532,6 +534,48 @@ public class ClientSchematicManager {
             info = new ServerSchematicInfo(id, id, 0L, "", 0L);
         }
         downloadSchematic(info, onComplete);
+    }
+
+    public Path getValidLocalFilePath(ServerSchematicInfo info) {
+        if (info == null) {
+            return null;
+        }
+        // 1. Direct server cache path
+        Path cachePath = getCacheDirectory().resolve(info.getId());
+        if (Files.exists(cachePath) && matchesHashAndSize(cachePath, info)) {
+            return cachePath;
+        }
+
+        // 2. Any matching file anywhere in schematics directory
+        Path localMatch = findLocalFileByHash(info.getHash(), info.getSize());
+        if (localMatch != null && Files.exists(localMatch) && isAllowedLocalPath(localMatch)) {
+            return localMatch;
+        }
+
+        return null;
+    }
+
+    public Path getValidLocalFilePath(String id) {
+        if (id == null) return null;
+        ServerSchematicInfo info = getSchematic(id);
+        if (info != null) {
+            return getValidLocalFilePath(info);
+        }
+        Path cachePath = getCacheDirectory().resolve(id);
+        if (Files.exists(cachePath) && Files.isRegularFile(cachePath)) {
+            return cachePath;
+        }
+        return null;
+    }
+
+    public boolean isSchematicAvailableLocally(String id) {
+        if (id == null) return false;
+        ServerSchematicInfo info = getSchematic(id);
+        if (info != null) {
+            return isDownloaded(info);
+        }
+        Path cachePath = getCacheDirectory().resolve(id);
+        return Files.exists(cachePath) && Files.isRegularFile(cachePath);
     }
 
     public Path getLocalFilePath(ServerSchematicInfo info) {
