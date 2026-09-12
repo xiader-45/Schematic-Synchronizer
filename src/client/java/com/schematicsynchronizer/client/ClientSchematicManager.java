@@ -42,6 +42,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -58,6 +59,32 @@ public class ClientSchematicManager {
         }
     };
 
+    public static class FileHashes {
+        public final String sha256;
+        public final String md5;
+
+        public FileHashes(String sha256, String md5) {
+            this.sha256 = sha256;
+            this.md5 = md5;
+        }
+    }
+
+    private static class LocalFileRecord {
+        final Path path;
+        final long size;
+        final long lastModified;
+        final String sha256;
+        final String md5;
+
+        LocalFileRecord(Path path, long size, long lastModified, String sha256, String md5) {
+            this.path = path;
+            this.size = size;
+            this.lastModified = lastModified;
+            this.sha256 = sha256;
+            this.md5 = md5;
+        }
+    }
+
     private final List<ServerSchematicInfo> serverSchematics = new ArrayList<>();
     private final Map<String, ServerSchematicInfo> schematicMap = new ConcurrentHashMap<>();
     private final Set<String> serverDirectories = ConcurrentHashMap.newKeySet();
@@ -67,6 +94,8 @@ public class ClientSchematicManager {
     private final Set<UUID> placedFromServerPlacements = ConcurrentHashMap.newKeySet();
     private final Set<UUID> sharedPlacements = ConcurrentHashMap.newKeySet();
     private final Map<UUID, Long> placementTimestamps = new ConcurrentHashMap<>();
+    private final Map<Path, LocalFileRecord> localFileRecords = new ConcurrentHashMap<>();
+    private final Map<String, Path> hashToLocalPath = new ConcurrentHashMap<>();
     private final Map<String, Map<Integer, byte[]>> downloadChunks = new ConcurrentHashMap<>();
     private final Map<String, Integer> expectedChunks = new ConcurrentHashMap<>();
     private final Map<String, List<Consumer<Path>>> downloadCallbacks = new ConcurrentHashMap<>();
@@ -93,6 +122,7 @@ public class ClientSchematicManager {
         this.initialized = true;
 
         loadPlacementStates();
+        scanLocalSchematicsAsync();
 
         SchematicPlacementEventHandler.getInstance().registerSchematicPlacementEventListener(new ISchematicPlacementEventListener() {
             @Override
@@ -132,6 +162,125 @@ public class ClientSchematicManager {
         }, List.of(SchematicPlacementEventFlag.ALL_EVENTS));
     }
 
+    public void scanLocalSchematicsAsync() {
+        CompletableFuture.runAsync(this::scanLocalSchematics);
+    }
+
+    public synchronized void scanLocalSchematics() {
+        Path root = FabricLoader.getInstance().getGameDir().resolve("schematics");
+        if (!Files.exists(root)) {
+            return;
+        }
+
+        Set<Path> currentFiles = new HashSet<>();
+        try (Stream<Path> stream = Files.walk(root)) {
+            stream.filter(Files::isRegularFile).forEach(path -> {
+                String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
+                if (name.endsWith(".litematic") || name.endsWith(".schematic") ||
+                    name.endsWith(".schem") || name.endsWith(".litematica") || name.endsWith(".nbt")) {
+                    currentFiles.add(path.toAbsolutePath().normalize());
+                }
+            });
+        } catch (Exception ignored) {
+        }
+
+        // Clean up deleted files from local records and map
+        this.localFileRecords.keySet().removeIf(p -> !currentFiles.contains(p));
+        this.hashToLocalPath.values().removeIf(p -> !currentFiles.contains(p));
+
+        boolean updated = false;
+        for (Path path : currentFiles) {
+            try {
+                long size = Files.size(path);
+                long lastModified = Files.getLastModifiedTime(path).toMillis();
+                LocalFileRecord record = this.localFileRecords.get(path);
+
+                if (record != null && record.size == size && record.lastModified == lastModified) {
+                    if (record.sha256 != null && !record.sha256.isEmpty()) {
+                        this.hashToLocalPath.put(record.sha256.toLowerCase(Locale.ROOT), path);
+                    }
+                    if (record.md5 != null && !record.md5.isEmpty()) {
+                        this.hashToLocalPath.put(record.md5.toLowerCase(Locale.ROOT), path);
+                    }
+                } else {
+                    FileHashes hashes = computeFileHashes(path);
+                    if (hashes != null) {
+                        LocalFileRecord newRecord = new LocalFileRecord(path, size, lastModified, hashes.sha256, hashes.md5);
+                        this.localFileRecords.put(path, newRecord);
+                        if (hashes.sha256 != null && !hashes.sha256.isEmpty()) {
+                            this.hashToLocalPath.put(hashes.sha256.toLowerCase(Locale.ROOT), path);
+                        }
+                        if (hashes.md5 != null && !hashes.md5.isEmpty()) {
+                            this.hashToLocalPath.put(hashes.md5.toLowerCase(Locale.ROOT), path);
+                        }
+                        updated = true;
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (updated) {
+            notifyGuiRefresh();
+        }
+    }
+
+    public Path findLocalFileByHash(String hash, long expectedSize) {
+        if (hash == null || hash.isEmpty()) {
+            return null;
+        }
+        String lowerHash = hash.toLowerCase(Locale.ROOT).trim();
+        Path cachedPath = this.hashToLocalPath.get(lowerHash);
+        if (cachedPath != null && Files.exists(cachedPath)) {
+            try {
+                if (expectedSize <= 0 || Files.size(cachedPath) == expectedSize) {
+                    return cachedPath;
+                }
+            } catch (IOException ignored) {
+            }
+        }
+
+        Path root = FabricLoader.getInstance().getGameDir().resolve("schematics");
+        if (Files.exists(root)) {
+            try (Stream<Path> stream = Files.walk(root)) {
+                Optional<Path> found = stream.filter(Files::isRegularFile).filter(path -> {
+                    String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
+                    if (!name.endsWith(".litematic") && !name.endsWith(".schematic") &&
+                        !name.endsWith(".schem") && !name.endsWith(".litematica") && !name.endsWith(".nbt")) {
+                        return false;
+                    }
+                    try {
+                        if (expectedSize > 0 && Files.size(path) != expectedSize) {
+                            return false;
+                        }
+                        Path norm = path.toAbsolutePath().normalize();
+                        FileHashes h = computeFileHashes(norm);
+                        if (h != null) {
+                            LocalFileRecord r = new LocalFileRecord(norm, Files.size(norm), Files.getLastModifiedTime(norm).toMillis(), h.sha256, h.md5);
+                            this.localFileRecords.put(norm, r);
+                            if (h.sha256 != null && !h.sha256.isEmpty()) {
+                                this.hashToLocalPath.put(h.sha256.toLowerCase(Locale.ROOT), norm);
+                            }
+                            if (h.md5 != null && !h.md5.isEmpty()) {
+                                this.hashToLocalPath.put(h.md5.toLowerCase(Locale.ROOT), norm);
+                            }
+                            return lowerHash.equalsIgnoreCase(h.sha256) || lowerHash.equalsIgnoreCase(h.md5);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                    return false;
+                }).findFirst();
+
+                if (found.isPresent()) {
+                    return found.get().toAbsolutePath().normalize();
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        return null;
+    }
+
     public void updateCatalog(List<ServerSchematicInfo> schematics, List<PlayerPlacementInfo> placements, String serverDir, List<String> directories) {
         if (serverDir != null && !serverDir.isEmpty()) {
             this.lastServerDirectory = serverDir;
@@ -149,6 +298,7 @@ public class ClientSchematicManager {
         this.loadPlacementStates();
         this.updatePlacements(placements);
         this.checkAndCleanPlacements();
+        this.scanLocalSchematicsAsync();
         this.notifyGuiRefresh();
     }
 
@@ -272,21 +422,63 @@ public class ClientSchematicManager {
     }
 
     public Path getLocalFilePath(ServerSchematicInfo info) {
-        return getCacheDirectory().resolve(info.getId());
+        if (info == null) {
+            return null;
+        }
+        // 1. Direct server cache path
+        Path cachePath = getCacheDirectory().resolve(info.getId());
+        if (Files.exists(cachePath) && matchesHashAndSize(cachePath, info)) {
+            return cachePath;
+        }
+
+        // 2. Any matching file anywhere in schematics directory
+        Path localMatch = findLocalFileByHash(info.getHash(), info.getSize());
+        if (localMatch != null && Files.exists(localMatch)) {
+            return localMatch;
+        }
+
+        return cachePath;
     }
 
     public boolean isDownloaded(ServerSchematicInfo info) {
+        if (info == null) {
+            return false;
+        }
         Path path = getLocalFilePath(info);
-        if (!Files.exists(path)) {
+        if (path == null || !Files.exists(path)) {
+            return false;
+        }
+        return matchesHashAndSize(path, info);
+    }
+
+    private boolean matchesHashAndSize(Path path, ServerSchematicInfo info) {
+        if (path == null || !Files.exists(path) || Files.isDirectory(path)) {
             return false;
         }
         try {
-            if (Files.size(path) != info.getSize()) {
+            if (info.getSize() > 0 && Files.size(path) != info.getSize()) {
                 return false;
             }
             if (info.getHash() != null && !info.getHash().isEmpty()) {
-                String localHash = computeHash(path);
-                return info.getHash().equalsIgnoreCase(localHash);
+                Path norm = path.toAbsolutePath().normalize();
+                LocalFileRecord record = this.localFileRecords.get(norm);
+                long mtime = Files.getLastModifiedTime(norm).toMillis();
+                long sz = Files.size(norm);
+                if (record != null && record.lastModified == mtime && record.size == sz) {
+                    return info.getHash().equalsIgnoreCase(record.sha256) || info.getHash().equalsIgnoreCase(record.md5);
+                }
+                FileHashes hashes = computeFileHashes(norm);
+                if (hashes != null) {
+                    this.localFileRecords.put(norm, new LocalFileRecord(norm, sz, mtime, hashes.sha256, hashes.md5));
+                    if (hashes.sha256 != null && !hashes.sha256.isEmpty()) {
+                        this.hashToLocalPath.put(hashes.sha256.toLowerCase(Locale.ROOT), norm);
+                    }
+                    if (hashes.md5 != null && !hashes.md5.isEmpty()) {
+                        this.hashToLocalPath.put(hashes.md5.toLowerCase(Locale.ROOT), norm);
+                    }
+                    return info.getHash().equalsIgnoreCase(hashes.sha256) || info.getHash().equalsIgnoreCase(hashes.md5);
+                }
+                return false;
             }
             return true;
         } catch (IOException e) {
@@ -300,6 +492,7 @@ public class ClientSchematicManager {
 
     public void requestRefresh() {
         this.checkAndCleanPlacements();
+        this.scanLocalSchematicsAsync();
         try {
             ClientPlayNetworking.send(new RequestSchematicsPayload());
         } catch (Throwable ignored) {
@@ -338,8 +531,21 @@ public class ClientSchematicManager {
 
     public void downloadSchematic(ServerSchematicInfo info, Consumer<Path> onComplete) {
         if (isDownloaded(info)) {
+            Path local = getLocalFilePath(info);
+            // If the matching file is outside the server cache directory, copy it to server cache
+            Path cachePath = getCacheDirectory().resolve(info.getId());
+            if (!cachePath.equals(local) && !Files.exists(cachePath)) {
+                try {
+                    if (cachePath.getParent() != null && !Files.exists(cachePath.getParent())) {
+                        Files.createDirectories(cachePath.getParent());
+                    }
+                    Files.copy(local, cachePath, StandardCopyOption.REPLACE_EXISTING);
+                    local = cachePath;
+                } catch (Exception ignored) {
+                }
+            }
             if (onComplete != null) {
-                onComplete.accept(getLocalFilePath(info));
+                onComplete.accept(local);
             }
             return;
         }
@@ -377,8 +583,7 @@ public class ClientSchematicManager {
                     }
                 }
 
-                ServerSchematicInfo info = this.schematicMap.get(id);
-                Path target = (info != null) ? getLocalFilePath(info) : getCacheDirectory().resolve(id);
+                Path target = getCacheDirectory().resolve(id);
                 if (target.getParent() != null && !Files.exists(target.getParent())) {
                     Files.createDirectories(target.getParent());
                 }
@@ -389,6 +594,8 @@ public class ClientSchematicManager {
                 this.activeDownloads.remove(id);
                 this.downloadChunks.remove(id);
                 this.expectedChunks.remove(id);
+
+                scanLocalSchematicsAsync();
 
                 List<Consumer<Path>> callbacks = this.downloadCallbacks.remove(id);
                 if (callbacks != null) {
@@ -431,6 +638,7 @@ public class ClientSchematicManager {
                 );
                 ClientPlayNetworking.send(payload);
             }
+            scanLocalSchematicsAsync();
         } catch (IOException ignored) {
         }
     }
@@ -874,22 +1082,48 @@ public class ClientSchematicManager {
         InfoUtils.sendVanillaMessage(Component.literal(message));
     }
 
-    private static String computeHash(Path path) {
-        try (FileInputStream fis = new FileInputStream(path.toFile())) {
-            MessageDigest digest = MessageDigest.getInstance("MD5");
+    public static FileHashes computeFileHashes(Path path) {
+        if (path == null || !Files.exists(path) || Files.isDirectory(path)) {
+            return null;
+        }
+        try (InputStream fis = Files.newInputStream(path)) {
+            MessageDigest shaDigest = MessageDigest.getInstance("SHA-256");
+            MessageDigest md5Digest = MessageDigest.getInstance("MD5");
             byte[] buffer = new byte[8192];
             int read;
             while ((read = fis.read(buffer)) != -1) {
-                digest.update(buffer, 0, read);
+                shaDigest.update(buffer, 0, read);
+                md5Digest.update(buffer, 0, read);
             }
-            byte[] md5 = digest.digest();
-            StringBuilder sb = new StringBuilder();
-            for (byte b : md5) {
-                sb.append(String.format("%02x", b));
+            byte[] shaBytes = shaDigest.digest();
+            byte[] md5Bytes = md5Digest.digest();
+            StringBuilder sbSha = new StringBuilder();
+            for (byte b : shaBytes) {
+                sbSha.append(String.format("%02x", b));
             }
-            return sb.toString();
+            StringBuilder sbMd5 = new StringBuilder();
+            for (byte b : md5Bytes) {
+                sbMd5.append(String.format("%02x", b));
+            }
+            return new FileHashes(sbSha.toString(), sbMd5.toString());
         } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public static String computeHash(Path path) {
+        FileHashes hashes = computeFileHashes(path);
+        return hashes != null ? hashes.sha256 : "";
+    }
+
+    public static String computeHash(Path path, String expectedHash) {
+        FileHashes hashes = computeFileHashes(path);
+        if (hashes == null) {
             return "";
         }
+        if (expectedHash != null && expectedHash.length() == 32) {
+            return hashes.md5;
+        }
+        return hashes.sha256;
     }
 }

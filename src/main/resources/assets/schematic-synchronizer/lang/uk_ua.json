@@ -31,7 +31,7 @@
   "schematic_synchronizer.gui.info.dir_hint1": "Подвійний клік щоб",
   "schematic_synchronizer.gui.info.dir_hint2": "відкрити папку.",
   "schematic_synchronizer.gui.info.file_label": "Файл: %s (%s)",
-  "schematic_synchronizer.gui.info.status_cached": "У кеші",
+  "schematic_synchronizer.gui.info.status_cached": "Завантажено",
   "schematic_synchronizer.gui.info.status_server": "На сервері",
   "schematic_synchronizer.gui.info.placements_header": "Розміщення (%d):",
   "schematic_synchronizer.gui.info.no_placements": "(Немає активних)",

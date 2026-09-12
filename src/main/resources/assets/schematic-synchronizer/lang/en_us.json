@@ -31,7 +31,7 @@
   "schematic_synchronizer.gui.info.dir_hint1": "Double click to",
   "schematic_synchronizer.gui.info.dir_hint2": "open folder.",
   "schematic_synchronizer.gui.info.file_label": "File: %s (%s)",
-  "schematic_synchronizer.gui.info.status_cached": "Cached",
+  "schematic_synchronizer.gui.info.status_cached": "Downloaded",
   "schematic_synchronizer.gui.info.status_server": "On server",
   "schematic_synchronizer.gui.info.placements_header": "Placements (%d):",
   "schematic_synchronizer.gui.info.no_placements": "(No active)",
