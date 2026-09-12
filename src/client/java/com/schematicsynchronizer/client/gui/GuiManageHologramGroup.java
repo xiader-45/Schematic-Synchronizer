@@ -24,20 +24,44 @@ public class GuiManageHologramGroup extends GuiBase {
         MEMBERS
     }
 
-    private final HologramGroupData group;
+    private final String groupId;
+    private HologramGroupData group;
     private Tab activeTab = Tab.PLACEMENTS;
     private int scrollOffset = 0;
 
     public GuiManageHologramGroup(Screen parent, HologramGroupData group) {
         this.setParent(parent);
+        this.groupId = group != null ? group.getId() : "";
         this.group = group;
         this.title = StringUtils.translate("schematic_synchronizer.gui.manage_group.title");
+    }
+
+    public HologramGroupData getGroup() {
+        if (this.groupId != null && !this.groupId.isEmpty()) {
+            HologramGroupData latest = ClientHologramGroupManager.getInstance().getGroupById(this.groupId);
+            if (latest != null) {
+                this.group = latest;
+            }
+        }
+        return this.group;
     }
 
     @Override
     public void initGui() {
         super.initGui();
+        ClientHologramGroupManager.getInstance().setGuiRefreshCallback(this::reCreateButtons);
         this.createButtons();
+    }
+
+    public void reCreateButtons() {
+        this.clearButtons();
+        this.createButtons();
+    }
+
+    @Override
+    public void removed() {
+        super.removed();
+        ClientHologramGroupManager.getInstance().setGuiRefreshCallback(null);
     }
 
     private void createButtons() {
@@ -48,16 +72,17 @@ public class GuiManageHologramGroup extends GuiBase {
         int x = (this.width - dialogW) / 2;
         int y = (this.height - dialogH) / 2;
 
+        HologramGroupData g = getGroup();
         Minecraft mc = Minecraft.getInstance();
         UUID myUuid = (mc.player != null) ? mc.getUser().getProfileId() : null;
         boolean isOp = ClientHologramGroupManager.getInstance().canOpManage();
-        boolean isOwner = (this.group != null && myUuid != null && this.group.isOwner(myUuid));
+        boolean isOwner = (g != null && myUuid != null && g.isOwner(myUuid));
         boolean canManage = isOwner || isOp;
 
         // Top Navigation Tabs
         int tabY = y + 26;
-        int placeCount = (this.group != null) ? this.group.getPlacements().size() : 0;
-        int memberCount = (this.group != null) ? this.group.getMembers().size() : 0;
+        int placeCount = (g != null) ? g.getPlacements().size() : 0;
+        int memberCount = (g != null) ? g.getMembers().size() : 0;
 
         String tabPlacementsLabel = StringUtils.translate("schematic_synchronizer.gui.manage_group.tab_placements", placeCount);
         int tabPW = this.getStringWidth(tabPlacementsLabel) + 16;
@@ -82,18 +107,18 @@ public class GuiManageHologramGroup extends GuiBase {
         // Tab Content
         if (this.activeTab == Tab.PLACEMENTS) {
             // Button: Add Placement
-            if (canManage && this.group != null) {
+            if (canManage && g != null) {
                 String addLabel = StringUtils.translate("schematic_synchronizer.gui.manage_group.add_placement");
                 int addW = this.getStringWidth(addLabel) + 16;
                 ButtonGeneric btnAddPlacement = new ButtonGeneric(x + dialogW - addW - 14, tabY, addW, 20, addLabel);
                 addButton(btnAddPlacement, (btn, mouse) -> {
-                    GuiBase.openGui(new GuiAddPlacementsToGroup(this, this.group));
+                    GuiBase.openGui(new GuiAddPlacementsToGroup(this, g));
                 });
             }
 
             // List placements
-            if (this.group != null) {
-                List<GroupPlacementData> placements = this.group.getPlacements();
+            if (g != null) {
+                List<GroupPlacementData> placements = g.getPlacements();
                 int itemY = y + 56;
                 int maxItems = 7;
                 int start = Math.min(scrollOffset, Math.max(0, placements.size() - maxItems));
@@ -105,8 +130,7 @@ public class GuiManageHologramGroup extends GuiBase {
                         int delW = this.getStringWidth(delLabel) + 12;
                         ButtonGeneric btnRemove = new ButtonGeneric(x + dialogW - delW - 14, itemY + 2, delW, 18, delLabel);
                         addButton(btnRemove, (btn, mouse) -> {
-                            ClientHologramGroupManager.getInstance().removePlacementFromGroup(this.group.getId(), p.getId());
-                            this.group.removePlacement(p.getId());
+                            ClientHologramGroupManager.getInstance().removePlacementFromGroup(g.getId(), p.getId());
                             this.createButtons();
                         });
                     }
@@ -115,23 +139,23 @@ public class GuiManageHologramGroup extends GuiBase {
             }
         } else if (this.activeTab == Tab.MEMBERS) {
             // OP: "Take Ownership" button
-            if (isOp && !isOwner && this.group != null && myUuid != null) {
+            if (isOp && !isOwner && g != null && myUuid != null) {
                 String takeLabel = StringUtils.translate("schematic_synchronizer.gui.manage_group.take_ownership_op");
                 int takeW = this.getStringWidth(takeLabel) + 14;
                 ButtonGeneric btnTake = new ButtonGeneric(x + dialogW - takeW - 14, tabY, takeW, 20, takeLabel);
                 addButton(btnTake, (btn, mouse) -> {
-                    ClientHologramGroupManager.getInstance().transferOwnership(this.group.getId(), myUuid);
+                    ClientHologramGroupManager.getInstance().transferOwnership(g.getId(), myUuid);
                     closeGui(true);
                 });
             }
 
-            if (this.group != null && canManage) {
+            if (g != null && canManage) {
                 int itemY = y + 56;
-                List<Map.Entry<UUID, String>> memberList = new ArrayList<>(this.group.getMembers().entrySet());
+                List<Map.Entry<UUID, String>> memberList = new ArrayList<>(g.getMembers().entrySet());
 
                 for (Map.Entry<UUID, String> entry : memberList) {
                     UUID memberUuid = entry.getKey();
-                    boolean memberIsOwner = this.group.isOwner(memberUuid);
+                    boolean memberIsOwner = g.isOwner(memberUuid);
 
                     if (!memberIsOwner || isOp) {
                         if (!memberIsOwner) {
@@ -139,7 +163,7 @@ public class GuiManageHologramGroup extends GuiBase {
                             int trW = 90;
                             ButtonGeneric btnTr = new ButtonGeneric(x + dialogW - 170, itemY + 2, trW, 18, trLabel);
                             addButton(btnTr, (btn, mouse) -> {
-                                ClientHologramGroupManager.getInstance().transferOwnership(this.group.getId(), memberUuid);
+                                ClientHologramGroupManager.getInstance().transferOwnership(g.getId(), memberUuid);
                                 closeGui(true);
                             });
                         }
@@ -149,8 +173,8 @@ public class GuiManageHologramGroup extends GuiBase {
                             int kickW = 70;
                             ButtonGeneric btnKick = new ButtonGeneric(x + dialogW - 74, itemY + 2, kickW, 18, kickLabel);
                             addButton(btnKick, (btn, mouse) -> {
-                                ClientHologramGroupManager.getInstance().kickMember(this.group.getId(), memberUuid);
-                                this.group.removeMember(memberUuid);
+                                ClientHologramGroupManager.getInstance().kickMember(g.getId(), memberUuid);
+                                g.removeMember(memberUuid);
                                 this.createButtons();
                             });
                         }
@@ -163,12 +187,12 @@ public class GuiManageHologramGroup extends GuiBase {
         // Bottom buttons: Delete Group & Back
         int bottomY = y + dialogH - 28;
 
-        if (canManage && this.group != null) {
+        if (canManage && g != null) {
             String delLabel = StringUtils.translate("schematic_synchronizer.gui.manage_group.delete_group");
             int delW = this.getStringWidth(delLabel) + 20;
             ButtonGeneric btnDel = new ButtonGeneric(x + 14, bottomY, delW, 20, delLabel);
             addButton(btnDel, (btn, mouse) -> {
-                ClientHologramGroupManager.getInstance().leaveGroup(this.group.getId(), LeaveHologramGroupPayload.ACTION_DELETE);
+                ClientHologramGroupManager.getInstance().leaveGroup(g.getId(), LeaveHologramGroupPayload.ACTION_DELETE);
                 closeGui(true);
             });
         }
@@ -198,13 +222,14 @@ public class GuiManageHologramGroup extends GuiBase {
         int x = (this.width - dialogW) / 2;
         int y = (this.height - dialogH) / 2;
 
-        String grpName = (this.group != null) ? this.group.getName() : "";
+        HologramGroupData g = getGroup();
+        String grpName = (g != null) ? g.getName() : "";
         String titleStr = "§6§l" + StringUtils.translate("schematic_synchronizer.gui.manage_group.title_with_name", grpName);
         this.drawStringWithShadow(ctx, titleStr, x + 14, y + 10, 0xFFFFAA00);
 
         if (this.activeTab == Tab.PLACEMENTS) {
-            if (this.group != null) {
-                List<GroupPlacementData> placements = this.group.getPlacements();
+            if (g != null) {
+                List<GroupPlacementData> placements = g.getPlacements();
                 if (placements.isEmpty()) {
                     String emptyStr = "§7" + StringUtils.translate("schematic_synchronizer.gui.manage_group.no_placements");
                     this.drawString(ctx, emptyStr, x + 16, y + 70, 0xFFAAAAAA);
@@ -228,16 +253,16 @@ public class GuiManageHologramGroup extends GuiBase {
                 }
             }
         } else if (this.activeTab == Tab.MEMBERS) {
-            if (this.group != null) {
+            if (g != null) {
                 int itemY = y + 58;
-                List<Map.Entry<UUID, String>> memberList = new ArrayList<>(this.group.getMembers().entrySet());
+                List<Map.Entry<UUID, String>> memberList = new ArrayList<>(g.getMembers().entrySet());
 
                 for (Map.Entry<UUID, String> entry : memberList) {
                     UUID memberUuid = entry.getKey();
                     String memberName = entry.getValue();
-                    boolean isOwner = this.group.isOwner(memberUuid);
+                    boolean memberIsOwner = g.isOwner(memberUuid);
 
-                    String text = isOwner
+                    String text = memberIsOwner
                             ? "§6§l" + memberName + " §e[" + StringUtils.translate("schematic_synchronizer.gui.group.status.owner") + "]"
                             : "§f" + memberName;
                     this.drawString(ctx, text, x + 16, itemY + 4, 0xFFFFFFFF);

@@ -73,9 +73,34 @@ public class ClientHologramGroupManager {
     public HologramGroupData getGroupForPlacement(SchematicPlacement placement) {
         if (placement == null) return null;
         UUID id = placement.getHashId();
-        if (id == null) return null;
-        GroupPlacementKey key = placementToGroupKey.get(id);
-        return key != null ? getGroupById(key.groupId()) : null;
+        if (id != null) {
+            GroupPlacementKey key = placementToGroupKey.get(id);
+            if (key != null) {
+                HologramGroupData g = getGroupById(key.groupId());
+                if (g != null) return g;
+            }
+        }
+        for (HologramGroupData group : this.groups) {
+            for (GroupPlacementData pData : group.getPlacements()) {
+                if (pData.getName().equalsIgnoreCase(placement.getName()) &&
+                        pData.getOrigin().equals(placement.getOrigin())) {
+                    if (id != null) {
+                        GroupPlacementKey newKey = new GroupPlacementKey(group.getId(), pData.getId());
+                        placementToGroupKey.put(id, newKey);
+                        groupKeyToPlacementId.put(newKey, id);
+                    }
+                    return group;
+                }
+            }
+        }
+        return null;
+    }
+
+    public void registerPlacementForGroup(String groupId, String placementId, UUID litematicaPlacementId) {
+        if (groupId == null || placementId == null || litematicaPlacementId == null) return;
+        GroupPlacementKey key = new GroupPlacementKey(groupId, placementId);
+        groupKeyToPlacementId.put(key, litematicaPlacementId);
+        placementToGroupKey.put(litematicaPlacementId, key);
     }
 
     public GroupPlacementKey getPlacementKey(SchematicPlacement placement) {
@@ -119,6 +144,17 @@ public class ClientHologramGroupManager {
 
     public void addPlacementsToGroup(String groupId, List<GroupPlacementData> placements) {
         if (groupId == null || placements == null || placements.isEmpty()) return;
+        HologramGroupData localGroup = getGroupById(groupId);
+        if (localGroup != null) {
+            for (GroupPlacementData p : placements) {
+                localGroup.addPlacement(p);
+            }
+            if (this.guiRefreshCallback != null) {
+                try {
+                    this.guiRefreshCallback.run();
+                } catch (Exception ignored) {}
+            }
+        }
         if (ClientPlayNetworking.canSend(AddGroupPlacementsPayload.TYPE)) {
             ClientPlayNetworking.send(new AddGroupPlacementsPayload(groupId, placements));
         }
@@ -126,6 +162,20 @@ public class ClientHologramGroupManager {
 
     public void removePlacementFromGroup(String groupId, String placementId) {
         if (groupId == null || placementId == null) return;
+        HologramGroupData localGroup = getGroupById(groupId);
+        if (localGroup != null) {
+            localGroup.removePlacement(placementId);
+            GroupPlacementKey key = new GroupPlacementKey(groupId, placementId);
+            UUID pId = groupKeyToPlacementId.remove(key);
+            if (pId != null) {
+                placementToGroupKey.remove(pId);
+            }
+            if (this.guiRefreshCallback != null) {
+                try {
+                    this.guiRefreshCallback.run();
+                } catch (Exception ignored) {}
+            }
+        }
         if (ClientPlayNetworking.canSend(RemoveGroupPlacementPayload.TYPE)) {
             ClientPlayNetworking.send(new RemoveGroupPlacementPayload(groupId, placementId));
         }
@@ -257,6 +307,30 @@ public class ClientHologramGroupManager {
                         for (SchematicPlacement p : allPlacements) {
                             if (p.getHashId().equals(existingPlacementId)) {
                                 matchedPlacement = p;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (matchedPlacement == null) {
+                        for (SchematicPlacement p : allPlacements) {
+                            GroupPlacementKey existingKey = placementToGroupKey.get(p.getHashId());
+                            if (existingKey != null && existingKey.equals(key)) {
+                                matchedPlacement = p;
+                                groupKeyToPlacementId.put(key, p.getHashId());
+                                break;
+                            }
+                        }
+                    }
+
+                    if (matchedPlacement == null) {
+                        for (SchematicPlacement p : allPlacements) {
+                            if (!placementToGroupKey.containsKey(p.getHashId()) &&
+                                    p.getName().equalsIgnoreCase(pData.getName()) &&
+                                    p.getOrigin().equals(pData.getOrigin())) {
+                                matchedPlacement = p;
+                                groupKeyToPlacementId.put(key, p.getHashId());
+                                placementToGroupKey.put(p.getHashId(), key);
                                 break;
                             }
                         }

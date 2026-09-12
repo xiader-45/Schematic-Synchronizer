@@ -107,5 +107,15 @@
   "schematic_synchronizer.gui.add_placements.add_selected": "Додати вибрані (%d)",
   "schematic_synchronizer.gui.add_placements.select_all": "Вибрати все",
   "schematic_synchronizer.gui.add_placements.deselect_all": "Зняти вибір",
-  "schematic_synchronizer.gui.add_placements.already_in_group": "Вже в групі"
+  "schematic_synchronizer.gui.add_placements.already_in_group": "Вже в групі",
+  "schematic_synchronizer.gui.button.add_to_group": "Додати до групи",
+  "schematic_synchronizer.gui.button.hover.add_to_group": "Додати це розміщення до наявної групи або створити нову",
+  "schematic_synchronizer.gui.button.in_group": "У групі «%s»",
+  "schematic_synchronizer.gui.button.hover.in_group": "Голограма знаходиться у групі «%s». Натисніть для керування",
+  "schematic_synchronizer.gui.select_group.title": "Додати до групи: %s",
+  "schematic_synchronizer.gui.select_group.subtitle": "Оберіть наявну групу або створіть нову:",
+  "schematic_synchronizer.gui.select_group.select_btn": "Обрати",
+  "schematic_synchronizer.gui.select_group.already_in": "У цій групі",
+  "schematic_synchronizer.gui.select_group.create_new": "+ Створити нову групу",
+  "schematic_synchronizer.gui.select_group.no_groups": "У вас поки немає доступних груп. Створіть нову групу."
 }

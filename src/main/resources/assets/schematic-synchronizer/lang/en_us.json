@@ -107,5 +107,15 @@
   "schematic_synchronizer.gui.add_placements.add_selected": "Add Selected (%d)",
   "schematic_synchronizer.gui.add_placements.select_all": "Select All",
   "schematic_synchronizer.gui.add_placements.deselect_all": "Deselect All",
-  "schematic_synchronizer.gui.add_placements.already_in_group": "Already in group"
+  "schematic_synchronizer.gui.add_placements.already_in_group": "Already in group",
+  "schematic_synchronizer.gui.button.add_to_group": "Add to Group",
+  "schematic_synchronizer.gui.button.hover.add_to_group": "Add this placement to an existing group or create a new one",
+  "schematic_synchronizer.gui.button.in_group": "In Group '%s'",
+  "schematic_synchronizer.gui.button.hover.in_group": "Placement is in group '%s'. Click to manage",
+  "schematic_synchronizer.gui.select_group.title": "Add to Group: %s",
+  "schematic_synchronizer.gui.select_group.subtitle": "Select an existing group or create a new one:",
+  "schematic_synchronizer.gui.select_group.select_btn": "Select",
+  "schematic_synchronizer.gui.select_group.already_in": "In this group",
+  "schematic_synchronizer.gui.select_group.create_new": "+ Create New Group",
+  "schematic_synchronizer.gui.select_group.no_groups": "You don't have any manageable groups yet. Create a new one."
 }

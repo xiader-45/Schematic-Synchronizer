@@ -107,5 +107,15 @@
   "schematic_synchronizer.gui.add_placements.add_selected": "Добавить выбранные (%d)",
   "schematic_synchronizer.gui.add_placements.select_all": "Выбрать все",
   "schematic_synchronizer.gui.add_placements.deselect_all": "Снять выбор",
-  "schematic_synchronizer.gui.add_placements.already_in_group": "Уже в группе"
+  "schematic_synchronizer.gui.add_placements.already_in_group": "Уже в группе",
+  "schematic_synchronizer.gui.button.add_to_group": "Добавить в группу",
+  "schematic_synchronizer.gui.button.hover.add_to_group": "Добавить это размещение в существующую группу или создать новую",
+  "schematic_synchronizer.gui.button.in_group": "В группе «%s»",
+  "schematic_synchronizer.gui.button.hover.in_group": "Голограмма находится в группе «%s». Нажмите для управления",
+  "schematic_synchronizer.gui.select_group.title": "Добавить в группу: %s",
+  "schematic_synchronizer.gui.select_group.subtitle": "Выберите существующую группу или создайте новую:",
+  "schematic_synchronizer.gui.select_group.select_btn": "Выбрать",
+  "schematic_synchronizer.gui.select_group.already_in": "В этой группе",
+  "schematic_synchronizer.gui.select_group.create_new": "+ Создать новую группу",
+  "schematic_synchronizer.gui.select_group.no_groups": "У вас пока нет доступных групп. Создайте новую группу."
 }

@@ -3,15 +3,14 @@ package com.schematicsynchronizer.client.mixin;
 import com.schematicsynchronizer.client.ClientHologramGroupManager;
 import com.schematicsynchronizer.client.ClientSchematicManager;
 import com.schematicsynchronizer.client.gui.ButtonServerSchematics;
-import com.schematicsynchronizer.client.gui.GuiCreateHologramGroup;
-import com.schematicsynchronizer.client.gui.GuiHologramGroups;
+import com.schematicsynchronizer.client.gui.GuiManageHologramGroup;
+import com.schematicsynchronizer.client.gui.GuiSelectGroupForPlacement;
 import com.schematicsynchronizer.data.HologramGroupData;
 import fi.dy.masa.litematica.gui.widgets.WidgetListSchematicPlacements;
 import fi.dy.masa.litematica.gui.widgets.WidgetSchematicPlacement;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
 import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.gui.button.ButtonGeneric;
-import fi.dy.masa.malilib.gui.button.ButtonOnOff;
 import fi.dy.masa.malilib.gui.widgets.WidgetContainer;
 import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.render.RenderUtils;
@@ -43,46 +42,24 @@ public abstract class MixinWidgetSchematicPlacement extends WidgetContainer {
     private void onInit(int x, int y, int width, int height, boolean isOdd,
                         SchematicPlacement placement, int listIndex,
                         WidgetListSchematicPlacements parent, CallbackInfo ci) {
-        if (!ClientSchematicManager.getInstance().isPlacedFromServer(placement)) {
-            boolean shared = ClientSchematicManager.getInstance().isPlacementShared(placement);
-            ButtonOnOff shareButton = new ButtonOnOff(
-                    this.buttonsStartX,
-                    y + 1,
-                    -1,
-                    true,
-                    "schematic_synchronizer.gui.button.share_placement",
-                    shared
-            );
-            shareButton.setHoverStrings(StringUtils.translate("schematic_synchronizer.gui.button.hover.share_placement"));
-            this.addButton(shareButton, (button, mouseButton) -> {
-                boolean newShared = !ClientSchematicManager.getInstance().isPlacementShared(placement);
-                ClientSchematicManager.getInstance().setPlacementShared(placement, newShared);
-                ((ButtonOnOff) button).updateDisplayString(newShared);
-            });
-            this.buttonsStartX = shareButton.getX() - 1;
-        }
-
-        // Hologram sync group button
+        // Group sync button: either "In Group <name>" or "Add to group"
         HologramGroupData group = ClientHologramGroupManager.getInstance().getGroupForPlacement(placement);
         if (group != null) {
-            boolean isOwner = ClientHologramGroupManager.getInstance().isPlacementOwner(placement);
-            String label = isOwner
-                    ? StringUtils.translate("schematic_synchronizer.gui.button.group_owner")
-                    : StringUtils.translate("schematic_synchronizer.gui.button.group_member");
+            String label = StringUtils.translate("schematic_synchronizer.gui.button.in_group", group.getName());
             int w = StringUtils.getStringWidth(label) + 10;
             ButtonGeneric groupButton = new ButtonGeneric(this.buttonsStartX - w, y + 1, w, 20, label);
-            groupButton.setHoverStrings(StringUtils.translate("schematic_synchronizer.gui.button.hover.group_info", group.getName(), group.getOwnerName()));
+            groupButton.setHoverStrings(StringUtils.translate("schematic_synchronizer.gui.button.hover.in_group", group.getName()));
             this.addButton(groupButton, (button, mouseButton) -> {
-                GuiBase.openGui(new GuiHologramGroups(null));
+                GuiBase.openGui(new GuiManageHologramGroup(null, group));
             });
             this.buttonsStartX = groupButton.getX() - 1;
         } else {
-            String label = StringUtils.translate("schematic_synchronizer.gui.button.create_group_short");
+            String label = StringUtils.translate("schematic_synchronizer.gui.button.add_to_group");
             int w = StringUtils.getStringWidth(label) + 10;
             ButtonGeneric groupButton = new ButtonGeneric(this.buttonsStartX - w, y + 1, w, 20, label);
-            groupButton.setHoverStrings(StringUtils.translate("schematic_synchronizer.gui.button.hover.create_group_short"));
+            groupButton.setHoverStrings(StringUtils.translate("schematic_synchronizer.gui.button.hover.add_to_group"));
             this.addButton(groupButton, (button, mouseButton) -> {
-                GuiBase.openGui(new GuiCreateHologramGroup(null, placement));
+                GuiBase.openGui(new GuiSelectGroupForPlacement(null, placement));
             });
             this.buttonsStartX = groupButton.getX() - 1;
         }
