@@ -22,7 +22,6 @@
 		]
 	},
 	"mixins": [
-		"schematic-synchronizer.mixins.json",
 		{
 			"config": "schematic-synchronizer.client.mixins.json",
 			"environment": "client"
