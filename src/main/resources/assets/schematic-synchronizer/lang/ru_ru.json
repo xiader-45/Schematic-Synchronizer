@@ -38,5 +38,14 @@
   "schematic_synchronizer.gui.info.more_placements": "...и ещё %d",
   "schematic_synchronizer.gui.browser.empty_server": "На сервере нет схематик!",
   "schematic_synchronizer.gui.browser.empty_server_hint": "Закиньте файлы схематик на сервер в папку:",
-  "schematic_synchronizer.gui.browser.empty_folder": "Папка пуста"
+  "schematic_synchronizer.gui.browser.empty_folder": "Папка пуста",
+  "schematic_synchronizer.gui.title.upload_schematics": "Загрузка схематик на сервер",
+  "schematic_synchronizer.gui.button.upload_to_server": "Загрузить на сервер",
+  "schematic_synchronizer.gui.button.upload_to_server_count": "Загрузить на сервер (%d)",
+  "schematic_synchronizer.gui.button.hover.upload_to_server": "Загрузить схематику на сервер",
+  "schematic_synchronizer.gui.upload_info.title": "Информация о файле",
+  "schematic_synchronizer.gui.upload_info.select_hint": "Выберите схематику или папку для загрузки на сервер.",
+  "schematic_synchronizer.gui.upload_info.multiple_selected": "Выбрано объектов: %d",
+  "schematic_synchronizer.gui.upload_info.directory_schematics": "Схематик в папке: %d",
+  "schematic_synchronizer.gui.upload_info.target_server_folder": "Целевая папка на сервере: %s"
 }

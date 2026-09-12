@@ -5,6 +5,8 @@ import com.schematicsynchronizer.client.ClientSchematicManager;
 import com.schematicsynchronizer.data.PlayerPlacementInfo;
 import com.schematicsynchronizer.data.ServerSchematicInfo;
 import fi.dy.masa.litematica.gui.Icons;
+import fi.dy.masa.malilib.gui.GuiBase;
+import fi.dy.masa.malilib.gui.GuiTextInputFeedback;
 import fi.dy.masa.malilib.gui.LeftRight;
 import fi.dy.masa.malilib.gui.interfaces.ISelectionListener;
 import fi.dy.masa.malilib.gui.widgets.WidgetListBase;
@@ -13,7 +15,10 @@ import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.util.Util;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 public class WidgetListServerBrowser extends WidgetListBase<ServerBrowserEntry, WidgetServerBrowserEntry> {
@@ -27,9 +32,9 @@ public class WidgetListServerBrowser extends WidgetListBase<ServerBrowserEntry, 
         this.parent = parent;
         this.browserEntryHeight = 22;
 
-        int searchWidth = Math.min(140, Math.max(80, width / 3));
+        int searchWidth = Math.min(130, Math.max(70, width / 4));
         int searchX = x + width - searchWidth - 4;
-        this.widgetSearchBar = new WidgetSearchBar(searchX, y + 4, searchWidth, 14, 0, Icons.FILE_ICON_SEARCH, LeftRight.RIGHT);
+        this.widgetSearchBar = new WidgetSearchBar(searchX, y + 3, searchWidth, 15, 0, Icons.FILE_ICON_SEARCH, LeftRight.RIGHT);
         this.browserEntriesOffsetY = 22;
     }
 
@@ -166,19 +171,72 @@ public class WidgetListServerBrowser extends WidgetListBase<ServerBrowserEntry, 
 
     @Override
     public boolean onMouseClicked(MouseButtonEvent event, boolean isDouble) {
-        int mx = (int) event.x();
-        int my = (int) event.y();
-
-        // Check root button
-        if (mx >= this.posX + 3 && mx <= this.posX + 17 && my >= this.posY + 3 && my <= this.posY + 17) {
-            goToRoot();
-            return true;
+        if (event.input() != 0) {
+            return super.onMouseClicked(event, isDouble);
         }
 
-        // Check up button
-        if (mx >= this.posX + 20 && mx <= this.posX + 34 && my >= this.posY + 3 && my <= this.posY + 17) {
-            goUp();
-            return true;
+        int mx = (int) event.x();
+        int my = (int) event.y();
+        int iconY = this.posY + 3;
+
+        if (my >= iconY && my <= iconY + 16) {
+            // Root (posX + 3 .. 17)
+            if (mx >= this.posX + 3 && mx <= this.posX + 17) {
+                goToRoot();
+                return true;
+            }
+            // Up (posX + 19 .. 33)
+            if (mx >= this.posX + 19 && mx <= this.posX + 33) {
+                goUp();
+                return true;
+            }
+            // Create Dir (posX + 35 .. 49)
+            if (mx >= this.posX + 35 && mx <= this.posX + 49) {
+                GuiTextInputFeedback dialog = new GuiTextInputFeedback(
+                        256,
+                        StringUtils.translate("malilib.gui.title.create_directory"),
+                        "",
+                        this.parent,
+                        name -> {
+                            if (name == null || name.trim().isEmpty()) return false;
+                            String clean = name.trim();
+                            if (clean.contains("/") || clean.contains("\\") || clean.contains("..")) return false;
+                            String rel = this.currentPath.isEmpty() ? clean : (this.currentPath + "/" + clean);
+                            ClientSchematicManager.getInstance().createServerDirectory(rel);
+                            try {
+                                Path local = ClientSchematicManager.getInstance().getCacheDirectory().resolve(rel);
+                                if (!Files.exists(local)) {
+                                    Files.createDirectories(local);
+                                }
+                            } catch (Exception ignored) {
+                            }
+                            enterDirectory(rel);
+                            return true;
+                        }
+                );
+                GuiBase.openGui(dialog);
+                return true;
+            }
+            // Open Dir (posX + 51 .. 65)
+            if (mx >= this.posX + 51 && mx <= this.posX + 65) {
+                Path base = ClientSchematicManager.getInstance().getCacheDirectory();
+                if (!this.currentPath.isEmpty()) {
+                    base = base.resolve(this.currentPath);
+                }
+                try {
+                    if (!Files.exists(base)) {
+                        Files.createDirectories(base);
+                    }
+                    Util.getPlatform().openPath(base);
+                } catch (Throwable ignored) {
+                }
+                return true;
+            }
+            // Upload (posX + 67 .. 81)
+            if (mx >= this.posX + 67 && mx <= this.posX + 81) {
+                GuiBase.openGui(new GuiUploadSchematicsList(this.parent, this.currentPath));
+                return true;
+            }
         }
 
         return super.onMouseClicked(event, isDouble);
@@ -186,27 +244,39 @@ public class WidgetListServerBrowser extends WidgetListBase<ServerBrowserEntry, 
 
     @Override
     public void drawContents(GuiContext ctx, int mouseX, int mouseY, float partialTicks) {
-        // Navigation bar buttons on top
         int iconY = this.posY + 3;
 
-        // Root button
-        boolean rootHover = mouseX >= this.posX + 3 && mouseX <= this.posX + 17 && mouseY >= iconY && mouseY <= iconY + 14;
-        if (rootHover) {
-            RenderUtils.drawOutline(ctx, this.posX + 2, iconY - 1, 16, 16, 0xEEEEEEEE);
-        }
-        Icons.FILE_ICON_DIR_ROOT.renderAt(ctx, this.posX + 4, iconY + 1, 0, true, false);
+        int rootX = this.posX + 3;
+        int upX = this.posX + 19;
+        int createDirX = this.posX + 35;
+        int openDirX = this.posX + 51;
+        int uploadX = this.posX + 67;
+        int pathX = this.posX + 85;
 
-        // Up button
-        boolean upHover = mouseX >= this.posX + 20 && mouseX <= this.posX + 34 && mouseY >= iconY && mouseY <= iconY + 14;
-        if (upHover) {
-            RenderUtils.drawOutline(ctx, this.posX + 19, iconY - 1, 16, 16, 0xEEEEEEEE);
-        }
-        Icons.FILE_ICON_DIR_UP.renderAt(ctx, this.posX + 21, iconY + 1, 0, !this.currentPath.isEmpty(), false);
-
-        // Current path bar
-        int pathX = this.posX + 38;
         int searchX = this.widgetSearchBar != null ? this.widgetSearchBar.getX() : (this.posX + this.totalWidth - 100);
         int pathW = searchX - pathX - 4;
+
+        boolean rootHover = mouseX >= rootX && mouseX <= rootX + 14 && mouseY >= iconY && mouseY <= iconY + 14;
+        boolean upHover = mouseX >= upX && mouseX <= upX + 14 && mouseY >= iconY && mouseY <= iconY + 14;
+        boolean createHover = mouseX >= createDirX && mouseX <= createDirX + 14 && mouseY >= iconY && mouseY <= iconY + 14;
+        boolean openHover = mouseX >= openDirX && mouseX <= openDirX + 14 && mouseY >= iconY && mouseY <= iconY + 14;
+        boolean uploadHover = mouseX >= uploadX && mouseX <= uploadX + 14 && mouseY >= iconY && mouseY <= iconY + 14;
+
+        // Hover outlines
+        if (rootHover) RenderUtils.drawOutline(ctx, rootX - 1, iconY - 1, 16, 16, 0xEEEEEEEE);
+        if (upHover) RenderUtils.drawOutline(ctx, upX - 1, iconY - 1, 16, 16, 0xEEEEEEEE);
+        if (createHover) RenderUtils.drawOutline(ctx, createDirX - 1, iconY - 1, 16, 16, 0xEEEEEEEE);
+        if (openHover) RenderUtils.drawOutline(ctx, openDirX - 1, iconY - 1, 16, 16, 0xEEEEEEEE);
+        if (uploadHover) RenderUtils.drawOutline(ctx, uploadX - 1, iconY - 1, 16, 16, 0xEEEEEEEE);
+
+        // Icons
+        Icons.FILE_ICON_DIR_ROOT.renderAt(ctx, rootX + 1, iconY + 1, 0, true, false);
+        Icons.FILE_ICON_DIR_UP.renderAt(ctx, upX + 1, iconY + 1, 0, !this.currentPath.isEmpty(), false);
+        Icons.FILE_ICON_CREATE_DIR.renderAt(ctx, createDirX + 1, iconY + 1, 0, true, false);
+        Icons.FILE_ICON_DIR.renderAt(ctx, openDirX + 1, iconY + 1, 0, true, false);
+        Icons.ARROW_UP.renderAt(ctx, uploadX + 1, iconY + 1, 0, true, false);
+
+        // Current path bar
         if (pathW > 20) {
             RenderUtils.drawRect(ctx, pathX, iconY, pathW, 14, 0x20FFFFFF);
             RenderUtils.drawOutline(ctx, pathX, iconY, pathW, 14, 0x40FFFFFF);
@@ -240,6 +310,12 @@ public class WidgetListServerBrowser extends WidgetListBase<ServerBrowserEntry, 
             RenderUtils.drawHoverText(ctx, mouseX, mouseY, Collections.singletonList(StringUtils.translate("malilib.gui.button.hover.directory_widget.root")));
         } else if (upHover) {
             RenderUtils.drawHoverText(ctx, mouseX, mouseY, Collections.singletonList(StringUtils.translate("malilib.gui.button.hover.directory_widget.up")));
+        } else if (createHover) {
+            RenderUtils.drawHoverText(ctx, mouseX, mouseY, Collections.singletonList(StringUtils.translate("malilib.gui.button.hover.directory_widget.create_directory")));
+        } else if (openHover) {
+            RenderUtils.drawHoverText(ctx, mouseX, mouseY, Collections.singletonList(StringUtils.translate("malilib.gui.button.hover.directory_widget.open_directory")));
+        } else if (uploadHover) {
+            RenderUtils.drawHoverText(ctx, mouseX, mouseY, Collections.singletonList(StringUtils.translate("schematic_synchronizer.gui.button.hover.upload_to_server")));
         }
     }
 

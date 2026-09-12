@@ -3,11 +3,7 @@ package com.schematicsynchronizer.client;
 import com.schematicsynchronizer.client.gui.GuiServerSchematicsList;
 import com.schematicsynchronizer.data.PlayerPlacementInfo;
 import com.schematicsynchronizer.data.ServerSchematicInfo;
-import com.schematicsynchronizer.network.DownloadSchematicRequestPayload;
-import com.schematicsynchronizer.network.PublishPlacementPayload;
-import com.schematicsynchronizer.network.RemovePlacementPayload;
-import com.schematicsynchronizer.network.RequestSchematicsPayload;
-import com.schematicsynchronizer.network.SchematicChunkPayload;
+import com.schematicsynchronizer.network.*;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.data.SchematicHolder;
 import fi.dy.masa.litematica.gui.GuiMaterialList;
@@ -383,6 +379,42 @@ public class ClientSchematicManager {
                 notifyGuiRefresh();
             } catch (IOException ignored) {
             }
+        }
+    }
+
+    public void uploadFile(Path localFile, String targetServerId) {
+        if (localFile == null || !Files.exists(localFile) || Files.isDirectory(localFile)) {
+            return;
+        }
+        if (!ClientPlayNetworking.canSend(UploadSchematicChunkPayload.TYPE)) {
+            return;
+        }
+        try {
+            byte[] fileBytes = Files.readAllBytes(localFile);
+            int chunkSize = 16384; // 16 KB chunks
+            int totalChunks = (int) Math.ceil((double) fileBytes.length / chunkSize);
+            if (totalChunks == 0) totalChunks = 1;
+
+            for (int i = 0; i < totalChunks; i++) {
+                int start = i * chunkSize;
+                int end = Math.min(start + chunkSize, fileBytes.length);
+                byte[] chunk = Arrays.copyOfRange(fileBytes, start, end);
+
+                UploadSchematicChunkPayload payload = new UploadSchematicChunkPayload(
+                        targetServerId,
+                        i,
+                        totalChunks,
+                        chunk
+                );
+                ClientPlayNetworking.send(payload);
+            }
+        } catch (IOException ignored) {
+        }
+    }
+
+    public void createServerDirectory(String directoryPath) {
+        if (ClientPlayNetworking.canSend(CreateServerDirectoryPayload.TYPE)) {
+            ClientPlayNetworking.send(new CreateServerDirectoryPayload(directoryPath));
         }
     }
 

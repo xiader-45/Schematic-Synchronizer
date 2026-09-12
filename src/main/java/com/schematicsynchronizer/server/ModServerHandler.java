@@ -1,9 +1,6 @@
 package com.schematicsynchronizer.server;
 
-import com.schematicsynchronizer.network.DownloadSchematicRequestPayload;
-import com.schematicsynchronizer.network.PublishPlacementPayload;
-import com.schematicsynchronizer.network.RemovePlacementPayload;
-import com.schematicsynchronizer.network.RequestSchematicsPayload;
+import com.schematicsynchronizer.network.*;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -61,6 +58,20 @@ public class ModServerHandler {
             ServerPlayer player = context.player();
             context.server().execute(() -> {
                 ServerPlacementManager.getInstance().removePlacement(context.server(), player.getUUID(), payload.placementId(), payload.schematicId());
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(UploadSchematicChunkPayload.TYPE, (payload, context) -> {
+            ServerPlayer player = context.player();
+            context.server().execute(() -> {
+                ServerSchematicManager.getInstance().handleUploadChunk(player, payload, context.server());
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(CreateServerDirectoryPayload.TYPE, (payload, context) -> {
+            ServerPlayer player = context.player();
+            context.server().execute(() -> {
+                ServerSchematicManager.getInstance().handleCreateDirectory(player, payload.directoryPath(), context.server());
             });
         });
     }

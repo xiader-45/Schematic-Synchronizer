@@ -3,6 +3,7 @@ package com.schematicsynchronizer.server;
 import com.schematicsynchronizer.data.ServerSchematicInfo;
 import com.schematicsynchronizer.network.SchematicChunkPayload;
 import com.schematicsynchronizer.network.SchematicListPayload;
+import com.schematicsynchronizer.network.UploadSchematicChunkPayload;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.nbt.CompoundTag;
@@ -12,6 +13,7 @@ import net.minecraft.nbt.NbtIo;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -27,6 +29,7 @@ public class ServerSchematicManager {
 
     private Path schematicsDir;
     private final Map<String, ServerSchematicInfo> schematics = new ConcurrentHashMap<>();
+    private final Map<String, Map<Integer, byte[]>> uploadChunks = new ConcurrentHashMap<>();
 
     public static ServerSchematicManager getInstance() {
         return INSTANCE;
@@ -134,18 +137,18 @@ public class ServerSchematicManager {
         }
     }
 
-    private static class SchematicMetadataDetails {
-        final String author;
-        final long timeCreated;
-        final int regionCount;
-        final int totalVolume;
-        final int totalBlocks;
-        final int sizeX;
-        final int sizeY;
-        final int sizeZ;
-        final int minecraftDataVersion;
+    public static class SchematicMetadataDetails {
+        public final String author;
+        public final long timeCreated;
+        public final int regionCount;
+        public final int totalVolume;
+        public final int totalBlocks;
+        public final int sizeX;
+        public final int sizeY;
+        public final int sizeZ;
+        public final int minecraftDataVersion;
 
-        SchematicMetadataDetails(String author, long timeCreated, int regionCount,
+        public SchematicMetadataDetails(String author, long timeCreated, int regionCount,
                                  int totalVolume, int totalBlocks,
                                  int sizeX, int sizeY, int sizeZ, int minecraftDataVersion) {
             this.author = author;
@@ -160,7 +163,7 @@ public class ServerSchematicManager {
         }
     }
 
-    private static SchematicMetadataDetails extractMetadata(Path path, long modified) {
+    public static SchematicMetadataDetails extractMetadata(Path path, long modified) {
         String author = "";
         long timeCreated = modified;
         int regionCount = 1;
@@ -285,6 +288,70 @@ public class ServerSchematicManager {
                         chunk
                 );
                 ServerPlayNetworking.send(player, chunkPayload);
+            }
+        } catch (IOException ignored) {
+        }
+    }
+
+    public void handleUploadChunk(ServerPlayer player, UploadSchematicChunkPayload payload, MinecraftServer server) {
+        String id = payload.schematicId().replace('\\', '/').trim();
+        while (id.startsWith("/")) {
+            id = id.substring(1);
+        }
+
+        if (id.contains("..") || id.contains(":") || id.isEmpty()) {
+            return;
+        }
+
+        int chunkIdx = payload.chunkIndex();
+        int total = payload.totalChunks();
+        byte[] data = payload.data();
+
+        Map<Integer, byte[]> chunks = uploadChunks.computeIfAbsent(id, k -> new ConcurrentHashMap<>());
+        chunks.put(chunkIdx, data);
+
+        if (chunks.size() == total) {
+            uploadChunks.remove(id);
+            try {
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                for (int i = 0; i < total; i++) {
+                    byte[] part = chunks.get(i);
+                    if (part != null) {
+                        baos.write(part);
+                    }
+                }
+                Path dir = getSchematicsDir();
+                Path target = dir.resolve(id).toAbsolutePath().normalize();
+                if (!target.startsWith(dir.toAbsolutePath().normalize())) {
+                    return;
+                }
+                if (target.getParent() != null && !Files.exists(target.getParent())) {
+                    Files.createDirectories(target.getParent());
+                }
+                Files.write(target, baos.toByteArray());
+
+                scanSchematics();
+                broadcastCatalog(server);
+            } catch (IOException ignored) {
+            }
+        }
+    }
+
+    public void handleCreateDirectory(ServerPlayer player, String relPath, MinecraftServer server) {
+        String clean = relPath.replace('\\', '/').trim();
+        while (clean.startsWith("/")) {
+            clean = clean.substring(1);
+        }
+        if (clean.contains("..") || clean.contains(":") || clean.isEmpty()) {
+            return;
+        }
+        try {
+            Path dir = getSchematicsDir();
+            Path target = dir.resolve(clean).toAbsolutePath().normalize();
+            if (target.startsWith(dir.toAbsolutePath().normalize())) {
+                Files.createDirectories(target);
+                scanSchematics();
+                broadcastCatalog(server);
             }
         } catch (IOException ignored) {
         }

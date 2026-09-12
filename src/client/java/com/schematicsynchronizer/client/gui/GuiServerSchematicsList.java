@@ -83,16 +83,13 @@ public class GuiServerSchematicsList extends GuiListBase<ServerBrowserEntry, Wid
         });
         x += loadW + 4;
 
-        // Button 2: "Список размещений"
-        List<PlayerPlacementInfo> placements = (isSchem && selected.getPlacements() != null) ? selected.getPlacements() : Collections.emptyList();
-        String placeLabel = placements.isEmpty()
-                ? StringUtils.translate("schematic_synchronizer.gui.button.placement_list")
-                : StringUtils.translate("schematic_synchronizer.gui.button.placement_list_count", placements.size());
+        // Button 2: "Список размещений" (always opens all server placements, with total count in parentheses)
+        int totalPlacements = ClientSchematicManager.getInstance().getAllPlacements().size();
+        String placeLabel = StringUtils.translate("schematic_synchronizer.gui.button.placement_list_count", totalPlacements);
         int placeW = this.getStringWidth(placeLabel) + 16;
         ButtonGeneric btnPlacements = new ButtonGeneric(x, y, placeW, 20, placeLabel);
         addButton(btnPlacements, (btn, mouse) -> {
-            String filterId = (selected != null && selected.isSchematic()) ? selected.getFullPath() : null;
-            GuiBase.openGui(new GuiServerPlacementsList(this, filterId));
+            GuiBase.openGui(new GuiServerPlacementsList(this, null));
         });
         x += placeW + 4;
 
