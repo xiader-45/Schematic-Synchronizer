@@ -117,5 +117,9 @@
   "schematic_synchronizer.gui.select_group.select_btn": "Обрати",
   "schematic_synchronizer.gui.select_group.already_in": "У цій групі",
   "schematic_synchronizer.gui.select_group.create_new": "+ Створити нову групу",
-  "schematic_synchronizer.gui.select_group.no_groups": "У вас поки немає доступних груп. Створіть нову групу."
+  "schematic_synchronizer.gui.select_group.no_groups": "У вас поки немає доступних груп. Створіть нову групу.",
+  "schematic_synchronizer.gui.manage_group.locked": "Заблоковано",
+  "schematic_synchronizer.gui.manage_group.no_placements_short": "Розміщень немає",
+  "schematic_synchronizer.gui.manage_group.hover.remove_placement": "Видалити це розміщення з групи",
+  "schematic_synchronizer.gui.manage_group.hover.delete_group": "Видалити групу назавжди для всіх учасників"
 }

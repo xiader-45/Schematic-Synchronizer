@@ -1,7 +1,6 @@
 package com.schematicsynchronizer.client.gui;
 
 import com.schematicsynchronizer.client.ClientHologramGroupManager;
-import com.schematicsynchronizer.data.GroupPlacementData;
 import com.schematicsynchronizer.data.HologramGroupData;
 import com.schematicsynchronizer.network.LeaveHologramGroupPayload;
 import fi.dy.masa.malilib.gui.GuiBase;
@@ -12,13 +11,14 @@ import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 
+import java.util.Map;
 import java.util.UUID;
 
-public class GuiManageHologramGroup extends GuiListBase<GroupPlacementData, WidgetGroupPlacementEntry, WidgetListGroupPlacements> {
+public class GuiManageGroupMembers extends GuiListBase<Map.Entry<UUID, String>, WidgetGroupMemberEntry, WidgetListGroupMembers> {
     private final String groupId;
     private HologramGroupData group;
 
-    public GuiManageHologramGroup(Screen parent, HologramGroupData group) {
+    public GuiManageGroupMembers(Screen parent, HologramGroupData group) {
         super(10, 48);
         this.setParent(parent);
         this.groupId = group != null ? group.getId() : "";
@@ -86,8 +86,8 @@ public class GuiManageHologramGroup extends GuiListBase<GroupPlacementData, Widg
     }
 
     @Override
-    protected WidgetListGroupPlacements createListWidget(int listX, int listY) {
-        return new WidgetListGroupPlacements(listX, listY, getBrowserWidth(), getBrowserHeight(), this);
+    protected WidgetListGroupMembers createListWidget(int listX, int listY) {
+        return new WidgetListGroupMembers(listX, listY, getBrowserWidth(), getBrowserHeight(), this);
     }
 
     private void createButtons() {
@@ -98,30 +98,37 @@ public class GuiManageHologramGroup extends GuiListBase<GroupPlacementData, Widg
         int placeCount = (g != null) ? g.getPlacements().size() : 0;
         int memberCount = (g != null) ? g.getMembers().size() : 0;
 
-        // Tab 1: Placements (Active)
+        // Tab 1: Placements
         String tabPlacementsLabel = StringUtils.translate("schematic_synchronizer.gui.manage_group.tab_placements", placeCount);
         int tabPW = this.getStringWidth(tabPlacementsLabel) + 16;
         ButtonGeneric btnTabP = new ButtonGeneric(x, tabY, tabPW, 20, tabPlacementsLabel);
-        btnTabP.setEnabled(false);
-        addButton(btnTabP, (btn, mouse) -> {});
+        addButton(btnTabP, (btn, mouse) -> {
+            GuiBase.openGui(new GuiManageHologramGroup(this.getParent(), this.getGroup()));
+        });
         x += tabPW + 4;
 
-        // Tab 2: Members
+        // Tab 2: Members (Active)
         String tabMembersLabel = StringUtils.translate("schematic_synchronizer.gui.manage_group.tab_members", memberCount);
         int tabMW = this.getStringWidth(tabMembersLabel) + 16;
         ButtonGeneric btnTabM = new ButtonGeneric(x, tabY, tabMW, 20, tabMembersLabel);
-        addButton(btnTabM, (btn, mouse) -> {
-            GuiBase.openGui(new GuiManageGroupMembers(this.getParent(), this.getGroup()));
-        });
+        btnTabM.setEnabled(false);
+        addButton(btnTabM, (btn, mouse) -> {});
 
-        // Top Right: Add Placement
-        if (canManage() && g != null) {
-            String addLabel = StringUtils.translate("schematic_synchronizer.gui.manage_group.add_placement");
-            int addW = this.getStringWidth(addLabel) + 16;
-            ButtonGeneric btnAddPlacement = new ButtonGeneric(this.width - addW - 10, tabY, addW, 20, addLabel);
-            addButton(btnAddPlacement, (btn, mouse) -> {
-                GuiBase.openGui(new GuiAddPlacementsToGroup(this, g));
-            });
+        // Top Right: Take ownership (OP)
+        if (g != null) {
+            Minecraft mc = Minecraft.getInstance();
+            UUID myUuid = (mc.player != null) ? mc.getUser().getProfileId() : null;
+            boolean isOp = ClientHologramGroupManager.getInstance().canOpManage();
+            boolean isOwner = (myUuid != null && g.isOwner(myUuid));
+            if (isOp && !isOwner && myUuid != null) {
+                String takeLabel = StringUtils.translate("schematic_synchronizer.gui.manage_group.take_ownership_op");
+                int takeW = this.getStringWidth(takeLabel) + 16;
+                ButtonGeneric btnTake = new ButtonGeneric(this.width - takeW - 10, tabY, takeW, 20, takeLabel);
+                addButton(btnTake, (btn, mouse) -> {
+                    ClientHologramGroupManager.getInstance().transferOwnership(g.getId(), myUuid);
+                    closeGui(true);
+                });
+            }
         }
 
         // Bottom Bar

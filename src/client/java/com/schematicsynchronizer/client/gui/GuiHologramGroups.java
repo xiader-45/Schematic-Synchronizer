@@ -1,6 +1,7 @@
 package com.schematicsynchronizer.client.gui;
 
 import com.schematicsynchronizer.client.ClientHologramGroupManager;
+import com.schematicsynchronizer.data.GroupPlacementData;
 import com.schematicsynchronizer.data.HologramGroupData;
 import com.schematicsynchronizer.network.LeaveHologramGroupPayload;
 import fi.dy.masa.malilib.gui.GuiBase;
@@ -11,9 +12,11 @@ import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.core.BlockPos;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 public class GuiHologramGroups extends GuiListBase<HologramGroupData, WidgetHologramGroupEntry, WidgetListHologramGroups> {
@@ -58,33 +61,26 @@ public class GuiHologramGroups extends GuiListBase<HologramGroupData, WidgetHolo
             ButtonGeneric btnLeave = new ButtonGeneric(x, y, leaveW, 20, leaveLabel);
             addButton(btnLeave, (btn, mouse) -> {
                 if (isOwner) {
-                    if (selected.getMembers().size() > 1) {
-                        GuiBase.openGui(new GuiConfirmOwnerLeave(this, selected));
-                    } else {
-                        ClientHologramGroupManager.getInstance().leaveGroup(selected.getId(), LeaveHologramGroupPayload.ACTION_DELETE);
-                    }
+                    GuiBase.openGui(new GuiConfirmOwnerLeave(this, selected));
                 } else {
-                    ClientHologramGroupManager.getInstance().leaveGroup(selected.getId(), LeaveHologramGroupPayload.ACTION_DELETE);
+                    ClientHologramGroupManager.getInstance().leaveGroup(selected.getId(), LeaveHologramGroupPayload.ACTION_TRANSFER_RANDOM);
                 }
             });
             x += leaveW + 4;
-        } else {
+        } else if (selected != null) {
             String joinLabel = StringUtils.translate("schematic_synchronizer.gui.button.join_group");
             int joinW = this.getStringWidth(joinLabel) + 20;
             ButtonGeneric btnJoin = new ButtonGeneric(x, y, joinW, 20, joinLabel);
-            btnJoin.setEnabled(selected != null && !isMember);
             addButton(btnJoin, (btn, mouse) -> {
-                if (selected != null) {
-                    ClientHologramGroupManager.getInstance().joinGroup(selected.getId());
-                }
+                ClientHologramGroupManager.getInstance().joinGroup(selected.getId());
             });
             x += joinW + 4;
         }
 
-        // Button 2: Manage (Owner or OP)
-        String manageLabel = StringUtils.translate("schematic_synchronizer.gui.button.manage_group");
-        int manW = this.getStringWidth(manageLabel) + 16;
-        ButtonGeneric btnManage = new ButtonGeneric(x, y, manW, 20, manageLabel);
+        // Button 2: Manage Group
+        String manLabel = StringUtils.translate("schematic_synchronizer.gui.button.manage_group");
+        int manW = this.getStringWidth(manLabel) + 20;
+        ButtonGeneric btnManage = new ButtonGeneric(x, y, manW, 20, manLabel);
         btnManage.setEnabled(selected != null && canManage);
         addButton(btnManage, (btn, mouse) -> {
             if (selected != null && canManage) {
@@ -177,9 +173,9 @@ public class GuiHologramGroups extends GuiListBase<HologramGroupData, WidgetHolo
 
         if (selected == null) {
             String title = StringUtils.translate("schematic_synchronizer.gui.hologram_groups.info.title");
-            this.drawStringWithShadow(ctx, "\u00a76\u00a7l" + title, contentX, curY, 0xFFFFAA00);
+            this.drawStringWithShadow(ctx, "§6§l" + title, contentX, curY, 0xFFFFAA00);
             curY += 14;
-            this.drawString(ctx, "\u00a77" + StringUtils.translate("schematic_synchronizer.gui.hologram_groups.info.select_group"), contentX, curY, 0xFFAAAAAA);
+            this.drawString(ctx, "§7" + StringUtils.translate("schematic_synchronizer.gui.hologram_groups.info.select_group"), contentX, curY, 0xFFAAAAAA);
             return;
         }
 
@@ -189,59 +185,69 @@ public class GuiHologramGroups extends GuiListBase<HologramGroupData, WidgetHolo
         boolean isMember = (myUuid != null && selected.isMember(myUuid));
 
         // Group Title
-        this.drawStringWithShadow(ctx, "\u00a76\u00a7l" + selected.getName(), contentX, curY, 0xFFFFAA00);
+        this.drawStringWithShadow(ctx, "§6§l" + selected.getName(), contentX, curY, 0xFFFFAA00);
         curY += 16;
 
         // Status
         String statusStr;
         if (isOwner) {
-            statusStr = "\u00a76\u00a7l" + StringUtils.translate("schematic_synchronizer.gui.group.status.owner");
+            statusStr = "§6§l" + StringUtils.translate("schematic_synchronizer.gui.group.status.owner");
         } else if (isMember) {
-            statusStr = "\u00a7a\u00a7l" + StringUtils.translate("schematic_synchronizer.gui.group.status.member");
+            statusStr = "§a§l" + StringUtils.translate("schematic_synchronizer.gui.group.status.member");
         } else {
-            statusStr = "\u00a77" + StringUtils.translate("schematic_synchronizer.gui.group.status.not_member");
+            statusStr = "§7" + StringUtils.translate("schematic_synchronizer.gui.group.status.not_member");
         }
-        this.drawString(ctx, "\u00a7e" + StringUtils.translate("schematic_synchronizer.gui.info.status") + ": " + statusStr, contentX, curY, 0xFFFFFFFF);
-        curY += 12;
-
-        // Schematic ID
-        this.drawString(ctx, "\u00a7e" + StringUtils.translate("schematic_synchronizer.gui.info.file") + ": \u00a7f" + selected.getSchematicId(), contentX, curY, 0xFFFFFFFF);
+        this.drawString(ctx, "§e" + StringUtils.translate("schematic_synchronizer.gui.info.status") + ": " + statusStr, contentX, curY, 0xFFFFFFFF);
         curY += 12;
 
         // Dimension
-        this.drawString(ctx, "\u00a7e" + StringUtils.translate("schematic_synchronizer.gui.info.dimension") + ": \u00a7f" + selected.getDimension(), contentX, curY, 0xFFFFFFFF);
+        this.drawString(ctx, "§e" + StringUtils.translate("schematic_synchronizer.gui.info.dimension") + ": §f" + selected.getDimension(), contentX, curY, 0xFFFFFFFF);
         curY += 12;
 
         // Owner
-        this.drawString(ctx, "\u00a7e" + StringUtils.translate("schematic_synchronizer.gui.info.owner") + ": \u00a7f" + selected.getOwnerName(), contentX, curY, 0xFFFFFFFF);
-        curY += 12;
-
-        // Position
-        String posStr = String.format("X: %d, Y: %d, Z: %d", selected.getOrigin().getX(), selected.getOrigin().getY(), selected.getOrigin().getZ());
-        this.drawString(ctx, "\u00a7e" + StringUtils.translate("schematic_synchronizer.gui.info.pos") + ": \u00a7f" + posStr, contentX, curY, 0xFFFFFFFF);
-        curY += 12;
-
-        // Rotation & Mirror
-        String rotMirStr = selected.getRotation() + " / " + selected.getMirror();
-        this.drawString(ctx, "\u00a7e" + StringUtils.translate("schematic_synchronizer.gui.info.rot_mir") + ": \u00a7f" + rotMirStr, contentX, curY, 0xFFFFFFFF);
+        this.drawString(ctx, "§e" + StringUtils.translate("schematic_synchronizer.gui.info.owner") + ": §f" + selected.getOwnerName(), contentX, curY, 0xFFFFFFFF);
         curY += 12;
 
         // Timestamp
         if (selected.getLastModified() > 0) {
             String dateStr = DATE_FORMAT.format(new Date(selected.getLastModified()));
-            this.drawString(ctx, "\u00a7e" + StringUtils.translate("schematic_synchronizer.gui.info.modified") + ": \u00a7f" + dateStr, contentX, curY, 0xFFFFFFFF);
+            this.drawString(ctx, "§e" + StringUtils.translate("schematic_synchronizer.gui.info.modified") + ": §f" + dateStr, contentX, curY, 0xFFFFFFFF);
             curY += 14;
         }
 
-        // Members list
-        this.drawString(ctx, "\u00a7e" + StringUtils.translate("schematic_synchronizer.gui.info.members") + " (" + selected.getMembers().size() + "):", contentX, curY, 0xFFFFFFFF);
+        // Section: Placements list
+        List<GroupPlacementData> placements = selected.getPlacements();
+        String plTitle = "§6§l" + StringUtils.translate("schematic_synchronizer.gui.manage_group.tab_placements", placements.size()) + ":";
+        this.drawString(ctx, plTitle, contentX, curY, 0xFFFFAA00);
+        curY += 12;
+
+        if (placements.isEmpty()) {
+            this.drawString(ctx, "  §8(" + StringUtils.translate("schematic_synchronizer.gui.manage_group.no_placements_short") + ")", contentX, curY, 0xFF888888);
+            curY += 12;
+        } else {
+            for (GroupPlacementData p : placements) {
+                if (curY > boxY + boxH - 46) break;
+                BlockPos pos = p.getOrigin();
+                String pHeader = "  §f• " + p.getName() + " §7(" + p.getSchematicId() + ")";
+                this.drawString(ctx, pHeader, contentX, curY, 0xFFFFFFFF);
+                curY += 10;
+                String pCoords = String.format("    §8X:%d Y:%d Z:%d  Rot:%s  Mir:%s", pos.getX(), pos.getY(), pos.getZ(), p.getRotation(), p.getMirror());
+                this.drawString(ctx, pCoords, contentX, curY, 0xFF888888);
+                curY += 12;
+            }
+        }
+        curY += 4;
+
+        // Section: Members list
+        String memTitle = "§6§l" + StringUtils.translate("schematic_synchronizer.gui.manage_group.tab_members", selected.getMembers().size()) + ":";
+        this.drawString(ctx, memTitle, contentX, curY, 0xFFFFAA00);
         curY += 12;
 
         for (String memberName : selected.getMembers().values()) {
             if (curY > boxY + boxH - 12) break;
             boolean isThisOwner = memberName.equalsIgnoreCase(selected.getOwnerName());
-            String tag = isThisOwner ? " \u00a76(" + StringUtils.translate("schematic_synchronizer.gui.group.status.owner") + ")" : "";
-            this.drawString(ctx, "  \u00a77\u2022 \u00a7f" + memberName + tag, contentX, curY, 0xFFFFFFFF);
+            String tag = isThisOwner ? " §6(" + StringUtils.translate("schematic_synchronizer.gui.group.status.owner") + ")" : "";
+            this.drawString(ctx, "  §7• §f" + memberName + tag, contentX, curY, 0xFFFFFFFF);
             curY += 11;
         }
     }

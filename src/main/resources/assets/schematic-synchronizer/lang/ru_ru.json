@@ -117,5 +117,9 @@
   "schematic_synchronizer.gui.select_group.select_btn": "Выбрать",
   "schematic_synchronizer.gui.select_group.already_in": "В этой группе",
   "schematic_synchronizer.gui.select_group.create_new": "+ Создать новую группу",
-  "schematic_synchronizer.gui.select_group.no_groups": "У вас пока нет доступных групп. Создайте новую группу."
+  "schematic_synchronizer.gui.select_group.no_groups": "У вас пока нет доступных групп. Создайте новую группу.",
+  "schematic_synchronizer.gui.manage_group.locked": "Заблокировано",
+  "schematic_synchronizer.gui.manage_group.no_placements_short": "Размещений нет",
+  "schematic_synchronizer.gui.manage_group.hover.remove_placement": "Удалить это размещение из группы",
+  "schematic_synchronizer.gui.manage_group.hover.delete_group": "Удалить группу навсегда для всех участников"
 }

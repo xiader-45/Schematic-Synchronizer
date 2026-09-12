@@ -117,5 +117,9 @@
   "schematic_synchronizer.gui.select_group.select_btn": "Select",
   "schematic_synchronizer.gui.select_group.already_in": "In this group",
   "schematic_synchronizer.gui.select_group.create_new": "+ Create New Group",
-  "schematic_synchronizer.gui.select_group.no_groups": "You don't have any manageable groups yet. Create a new one."
+  "schematic_synchronizer.gui.select_group.no_groups": "You don't have any manageable groups yet. Create a new one.",
+  "schematic_synchronizer.gui.manage_group.locked": "Locked",
+  "schematic_synchronizer.gui.manage_group.no_placements_short": "No placements",
+  "schematic_synchronizer.gui.manage_group.hover.remove_placement": "Remove this placement from group",
+  "schematic_synchronizer.gui.manage_group.hover.delete_group": "Delete group permanently for all members"
 }
