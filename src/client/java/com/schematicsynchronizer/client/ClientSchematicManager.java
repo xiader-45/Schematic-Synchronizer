@@ -3,6 +3,7 @@ package com.schematicsynchronizer.client;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.schematicsynchronizer.client.gui.GuiServerSchematicsList;
 import com.schematicsynchronizer.data.PlayerPlacementInfo;
@@ -65,6 +66,7 @@ public class ClientSchematicManager {
     private final Map<UUID, String> activePlacementToSchematicId = new ConcurrentHashMap<>();
     private final Set<UUID> placedFromServerPlacements = ConcurrentHashMap.newKeySet();
     private final Set<UUID> sharedPlacements = ConcurrentHashMap.newKeySet();
+    private final Map<UUID, Long> placementTimestamps = new ConcurrentHashMap<>();
     private final Map<String, Map<Integer, byte[]>> downloadChunks = new ConcurrentHashMap<>();
     private final Map<String, Integer> expectedChunks = new ConcurrentHashMap<>();
     private final Map<String, List<Consumer<Path>>> downloadCallbacks = new ConcurrentHashMap<>();
@@ -156,7 +158,11 @@ public class ClientSchematicManager {
         this.playerPlacements.addAll(placements);
         for (PlayerPlacementInfo p : placements) {
             this.placementsBySchematic.computeIfAbsent(p.getSchematicId(), k -> new ArrayList<>()).add(p);
+            if (p.getPlacementId() != null && p.getTimestamp() > 0) {
+                this.placementTimestamps.putIfAbsent(p.getPlacementId(), p.getTimestamp());
+            }
         }
+        this.savePlacementStates();
         this.notifyGuiRefresh();
     }
 
@@ -550,6 +556,8 @@ public class ClientSchematicManager {
             }
             this.activePlacementToSchematicId.put(placement.getHashId(), info.getId());
             this.placedFromServerPlacements.add(placement.getHashId());
+            long now = System.currentTimeMillis();
+            this.placementTimestamps.put(placement.getHashId(), now);
             savePlacementStates();
             DataManager.getSchematicPlacementManager().addSchematicPlacement(placement, true);
             DataManager.getSchematicPlacementManager().setSelectedSchematicPlacement(placement);
@@ -655,6 +663,7 @@ public class ClientSchematicManager {
             Path cacheDir = getCacheDirectory();
             loadUuidSet(cacheDir.resolve("shared_placements.json"), this.sharedPlacements);
             loadUuidSet(cacheDir.resolve("placed_from_server.json"), this.placedFromServerPlacements);
+            loadTimestampMap(cacheDir.resolve("placement_timestamps.json"), this.placementTimestamps);
         } catch (Exception ignored) {
         }
     }
@@ -664,6 +673,40 @@ public class ClientSchematicManager {
             Path cacheDir = getCacheDirectory();
             saveUuidSet(cacheDir.resolve("shared_placements.json"), this.sharedPlacements);
             saveUuidSet(cacheDir.resolve("placed_from_server.json"), this.placedFromServerPlacements);
+            saveTimestampMap(cacheDir.resolve("placement_timestamps.json"), this.placementTimestamps);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void loadTimestampMap(Path file, Map<UUID, Long> map) {
+        if (!Files.exists(file)) return;
+        try (Reader reader = Files.newBufferedReader(file)) {
+            JsonElement el = JsonParser.parseReader(reader);
+            if (el != null && el.isJsonObject()) {
+                map.clear();
+                for (Map.Entry<String, JsonElement> entry : el.getAsJsonObject().entrySet()) {
+                    try {
+                        map.put(UUID.fromString(entry.getKey()), entry.getValue().getAsLong());
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void saveTimestampMap(Path file, Map<UUID, Long> map) {
+        try {
+            if (file.getParent() != null && !Files.exists(file.getParent())) {
+                Files.createDirectories(file.getParent());
+            }
+            JsonObject obj = new JsonObject();
+            for (Map.Entry<UUID, Long> entry : map.entrySet()) {
+                obj.addProperty(entry.getKey().toString(), entry.getValue());
+            }
+            try (Writer writer = Files.newBufferedWriter(file)) {
+                new Gson().toJson(obj, writer);
+            }
         } catch (Exception ignored) {
         }
     }
@@ -753,8 +796,39 @@ public class ClientSchematicManager {
         if (mc.player == null || mc.level == null) {
             return;
         }
+        String dim = mc.level.dimension().identifier().toString();
+        String rot = placement.getRotation() != null ? placement.getRotation().name() : "NONE";
+        String mir = placement.getMirror() != null ? placement.getMirror().name() : "NONE";
+
+        // Avoid re-publishing if this placement is already synced on the server identically
+        for (PlayerPlacementInfo existing : this.playerPlacements) {
+            if (existing.getOwnerUuid().equals(mc.getUser().getProfileId())
+                    && existing.getSchematicId().equalsIgnoreCase(schematicId)
+                    && existing.getPos().equals(placement.getOrigin())
+                    && existing.getDimension().equalsIgnoreCase(dim)
+                    && Objects.equals(existing.getRotation(), rot)
+                    && Objects.equals(existing.getMirror(), mir)) {
+                return;
+            }
+        }
+
+        long timestamp = this.placementTimestamps.getOrDefault(placement.getHashId(), 0L);
+        if (timestamp <= 0) {
+            for (PlayerPlacementInfo p : this.playerPlacements) {
+                if (p.getPlacementId().equals(placement.getHashId()) ||
+                    (p.getOwnerUuid().equals(mc.getUser().getProfileId()) && p.getSchematicId().equalsIgnoreCase(schematicId))) {
+                    timestamp = p.getTimestamp();
+                    break;
+                }
+            }
+        }
+        if (timestamp <= 0) {
+            timestamp = System.currentTimeMillis();
+            this.placementTimestamps.put(placement.getHashId(), timestamp);
+            savePlacementStates();
+        }
+
         if (ClientPlayNetworking.canSend(PublishPlacementPayload.TYPE)) {
-            String dim = mc.level.dimension().identifier().toString();
             PlayerPlacementInfo info = new PlayerPlacementInfo(
                     placement.getHashId(),
                     schematicId,
@@ -762,9 +836,9 @@ public class ClientSchematicManager {
                     mc.getUser().getProfileId(),
                     placement.getOrigin(),
                     dim,
-                    placement.getRotation() != null ? placement.getRotation().name() : "NONE",
-                    placement.getMirror() != null ? placement.getMirror().name() : "NONE",
-                    System.currentTimeMillis()
+                    rot,
+                    mir,
+                    timestamp
             );
             ClientPlayNetworking.send(new PublishPlacementPayload(info));
         }
@@ -780,6 +854,7 @@ public class ClientSchematicManager {
         if (hashId != null) {
             this.placedFromServerPlacements.remove(hashId);
             this.sharedPlacements.remove(hashId);
+            this.placementTimestamps.remove(hashId);
             savePlacementStates();
         }
         if (wasServer || wasShared) {

@@ -111,13 +111,46 @@ public class ServerPlacementManager {
     public void addOrUpdatePlacement(MinecraftServer server, PlayerPlacementInfo placement) {
         if (placement == null) return;
         
-        // Remove old placement by same player and schematic if exists
+        // Find existing placement by same placementId OR by same owner + schematicId
+        PlayerPlacementInfo existing = activePlacements.get(placement.getPlacementId());
+        if (existing == null) {
+            for (PlayerPlacementInfo p : activePlacements.values()) {
+                if (p.getOwnerUuid().equals(placement.getOwnerUuid()) &&
+                    p.getSchematicId().equalsIgnoreCase(placement.getSchematicId())) {
+                    existing = p;
+                    break;
+                }
+            }
+        }
+
+        long finalTimestamp = placement.getTimestamp();
+        // Preserve original timestamp if it already exists on server
+        if (existing != null && existing.getTimestamp() > 0) {
+            finalTimestamp = existing.getTimestamp();
+        }
+        if (finalTimestamp <= 0) {
+            finalTimestamp = System.currentTimeMillis();
+        }
+
+        PlayerPlacementInfo toStore = new PlayerPlacementInfo(
+                placement.getPlacementId(),
+                placement.getSchematicId(),
+                placement.getOwnerName(),
+                placement.getOwnerUuid(),
+                placement.getPos(),
+                placement.getDimension(),
+                placement.getRotation(),
+                placement.getMirror(),
+                finalTimestamp
+        );
+
+        // Remove old placement by same player and schematic if exists under a different key
         activePlacements.entrySet().removeIf(entry ->
                 entry.getValue().getOwnerUuid().equals(placement.getOwnerUuid()) &&
                 entry.getValue().getSchematicId().equalsIgnoreCase(placement.getSchematicId()) &&
                 !entry.getKey().equals(placement.getPlacementId()));
 
-        activePlacements.put(placement.getPlacementId(), placement);
+        activePlacements.put(toStore.getPlacementId(), toStore);
         save();
         broadcastPlacements(server);
     }
