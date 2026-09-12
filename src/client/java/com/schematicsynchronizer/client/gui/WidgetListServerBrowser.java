@@ -334,15 +334,31 @@ public class WidgetListServerBrowser extends WidgetListBase<ServerBrowserEntry, 
         }
 
         if (!hasContent) {
-            int cy = this.posY + this.totalHeight / 2 - 20;
             if (ClientSchematicManager.getInstance().getServerSchematics().isEmpty() && ClientSchematicManager.getInstance().getServerDirectories().isEmpty()) {
                 String dir = ClientSchematicManager.getInstance().getLastServerDirectory();
-                drawCentered(ctx, cy, 0xFFFF5555, StringUtils.translate("schematic_synchronizer.gui.browser.empty_server"));
-                if (dir != null && !dir.isEmpty()) {
-                    drawCentered(ctx, cy + 14, 0xFFAAAAAA, StringUtils.translate("schematic_synchronizer.gui.browser.empty_server_hint"));
-                    drawCentered(ctx, cy + 28, 0xFFFFFF55, dir);
+                boolean hasDir = dir != null && !dir.isEmpty();
+
+                String line1 = StringUtils.translate("schematic_synchronizer.gui.browser.empty_server");
+                String line2 = StringUtils.translate("schematic_synchronizer.gui.browser.empty_server_upload");
+                String folderLabel = StringUtils.translate("schematic_synchronizer.gui.browser.empty_server_folder");
+
+                boolean singleLineDir = hasDir && (this.getStringWidth(folderLabel + " " + dir) <= this.totalWidth - 20);
+                int totalLines = hasDir ? (singleLineDir ? 3 : 4) : 2;
+                int startY = this.posY + (this.totalHeight - totalLines * 14) / 2;
+
+                drawCentered(ctx, startY, 0xFFDDDDDD, line1);
+                drawCentered(ctx, startY + 14, 0xFFAAAAAA, line2);
+
+                if (hasDir) {
+                    if (singleLineDir) {
+                        drawCentered(ctx, startY + 28, 0xFFAAAAAA, folderLabel + " " + dir);
+                    } else {
+                        drawCentered(ctx, startY + 28, 0xFFAAAAAA, folderLabel);
+                        drawCentered(ctx, startY + 42, 0xFFCCCCCC, dir);
+                    }
                 }
             } else {
+                int cy = this.posY + this.totalHeight / 2 - 10;
                 drawCentered(ctx, cy, 0xFFAAAAAA, StringUtils.translate("schematic_synchronizer.gui.browser.empty_folder"));
             }
         }
