@@ -1,10 +1,9 @@
 package com.schematicsynchronizer.client.mixin;
 
+import com.schematicsynchronizer.client.gui.ButtonServerSchematics;
 import com.schematicsynchronizer.client.gui.GuiServerSchematicsList;
-import fi.dy.masa.litematica.gui.ButtonIcons;
 import fi.dy.masa.litematica.gui.GuiMainMenu;
 import fi.dy.masa.malilib.gui.GuiBase;
-import fi.dy.masa.malilib.gui.button.ButtonGeneric;
 import fi.dy.masa.malilib.util.StringUtils;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -31,7 +30,7 @@ public abstract class MixinGuiMainMenu extends GuiBase {
         int y = 52;
 
         String label = StringUtils.translate("schematic_synchronizer.gui.button.server_schematics");
-        ButtonGeneric button = new ButtonGeneric(x, y, buttonWidth, 20, label, ButtonIcons.SCHEMATIC_BROWSER);
+        ButtonServerSchematics button = new ButtonServerSchematics(x, y, buttonWidth, 20, label);
         addButton(button, (btn, mouseButton) -> {
             GuiBase.openGui(new GuiServerSchematicsList(this));
         });
