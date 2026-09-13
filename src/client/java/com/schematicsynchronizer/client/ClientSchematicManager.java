@@ -131,6 +131,13 @@ public class ClientSchematicManager {
             @Override
             public void onPlacementRemoved(SchematicPlacement placement) {
                 removePlacementFromServer(placement);
+                com.schematicsynchronizer.data.HologramGroupData group = ClientHologramGroupManager.getInstance().getGroupForPlacement(placement);
+                if (group != null) {
+                    ClientHologramGroupManager.GroupPlacementKey key = ClientHologramGroupManager.getInstance().getPlacementKey(placement);
+                    if (key != null) {
+                        ClientHologramGroupManager.getInstance().removePlacementFromGroup(key.groupId(), key.placementId());
+                    }
+                }
             }
 
             @Override
@@ -160,6 +167,16 @@ public class ClientSchematicManager {
             @Override
             public void onPlacementReset(SchematicPlacement placement) {
                 syncPlacementToServer(placement);
+                ClientHologramGroupManager.getInstance().onPlacementModified(placement);
+            }
+
+            @Override
+            public void onSetEnabled(SchematicPlacement placement, boolean enabled) {
+                ClientHologramGroupManager.getInstance().onPlacementModified(placement);
+            }
+
+            @Override
+            public void onToggleLocked(SchematicPlacement placement, boolean locked) {
                 ClientHologramGroupManager.getInstance().onPlacementModified(placement);
             }
         }, List.of(SchematicPlacementEventFlag.ALL_EVENTS));
@@ -385,6 +402,7 @@ public class ClientSchematicManager {
         for (ServerSchematicInfo s : schematics) {
             this.schematicMap.put(s.getId(), s);
         }
+        this.activeDownloads.clear();
         this.updatePlacements(placements);
         this.checkAndCleanPlacements();
         this.scanLocalSchematicsAsync();
@@ -555,27 +573,69 @@ public class ClientSchematicManager {
         return null;
     }
 
+    public Path findLocalFileByName(String fileName) {
+        if (fileName == null || fileName.isEmpty()) return null;
+        Path root = FabricLoader.getInstance().getGameDir().resolve("schematics");
+        if (!Files.exists(root)) return null;
+        String searchName = fileName.replace('\\', '/');
+        if (searchName.contains("/")) {
+            searchName = searchName.substring(searchName.lastIndexOf('/') + 1);
+        }
+        final String targetName = searchName;
+        final Path[] result = new Path[1];
+        try {
+            Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                    if (!isAllowedLocalPath(dir)) return FileVisitResult.SKIP_SUBTREE;
+                    return FileVisitResult.CONTINUE;
+                }
+                @Override
+                public FileVisitResult visitFile(Path path, BasicFileAttributes attrs) {
+                    if (path.getFileName().toString().equalsIgnoreCase(targetName)) {
+                        result[0] = path;
+                        return FileVisitResult.TERMINATE;
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (Exception ignored) {}
+        return result[0];
+    }
+
     public Path getValidLocalFilePath(String id) {
         if (id == null) return null;
         ServerSchematicInfo info = getSchematic(id);
         if (info != null) {
-            return getValidLocalFilePath(info);
+            Path p = getValidLocalFilePath(info);
+            if (p != null) return p;
         }
         Path cachePath = getCacheDirectory().resolve(id);
         if (Files.exists(cachePath) && Files.isRegularFile(cachePath)) {
             return cachePath;
+        }
+        Path direct = FabricLoader.getInstance().getGameDir().resolve("schematics").resolve(id);
+        if (Files.exists(direct) && Files.isRegularFile(direct)) {
+            return direct;
+        }
+        Path found = findLocalFileByName(id);
+        if (found != null && Files.exists(found)) {
+            return found;
         }
         return null;
     }
 
     public boolean isSchematicAvailableLocally(String id) {
         if (id == null) return false;
+        Path local = getValidLocalFilePath(id);
+        if (local != null && Files.exists(local)) {
+            return true;
+        }
         ServerSchematicInfo info = getSchematic(id);
         if (info != null) {
             return isDownloaded(info);
         }
-        Path cachePath = getCacheDirectory().resolve(id);
-        return Files.exists(cachePath) && Files.isRegularFile(cachePath);
+        return false;
     }
 
     public Path getLocalFilePath(ServerSchematicInfo info) {
@@ -1027,6 +1087,51 @@ public class ClientSchematicManager {
         }
 
         syncPlacementToServer(placement);
+    }
+
+    public void ensureSchematicUploaded(SchematicPlacement placement, String schematicId) {
+        if (placement == null) return;
+        String id = (schematicId != null && !schematicId.isEmpty()) ? schematicId : getSchematicIdForPlacement(placement);
+        if (id == null || id.isEmpty()) {
+            if (placement.getSchematic() != null && placement.getSchematic().getFile() != null) {
+                id = placement.getSchematic().getFile().getFileName().toString();
+            } else {
+                id = placement.getName() + ".litematic";
+            }
+        }
+
+        this.activePlacementToSchematicId.put(placement.getHashId(), id);
+
+        if (this.schematicMap.containsKey(id)) {
+            return;
+        }
+
+        Path localFile = null;
+        if (placement.getSchematic() != null && placement.getSchematic().getFile() != null) {
+            Path f = placement.getSchematic().getFile();
+            if (Files.exists(f)) {
+                localFile = f;
+            }
+        }
+        if (localFile == null) {
+            localFile = getValidLocalFilePath(id);
+        }
+        if (localFile == null && placement.getSchematic() != null) {
+            Path exportDir = getCacheDirectory().resolve("temp_shared");
+            try {
+                Files.createDirectories(exportDir);
+                placement.getSchematic().writeToFile(exportDir, id, true);
+                Path exported = exportDir.resolve(id);
+                if (Files.exists(exported)) {
+                    localFile = exported;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (localFile != null && Files.exists(localFile)) {
+            uploadFile(localFile, id);
+        }
     }
 
     public void unsharePlacementFromServer(SchematicPlacement placement) {

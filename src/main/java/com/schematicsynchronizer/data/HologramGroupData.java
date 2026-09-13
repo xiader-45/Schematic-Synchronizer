@@ -9,12 +9,18 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import java.util.*;
 
 public class HologramGroupData {
+    public static final String PERM_ALL = "all";
+    public static final String PERM_EDIT = "edit";
+    public static final String PERM_ADD = "add";
+    public static final String PERM_READ = "read";
+
     private final String id;
     private String name;
     private final String dimension;
     private UUID ownerUuid;
     private String ownerName;
     private final Map<UUID, String> members = new LinkedHashMap<>();
+    private final Map<UUID, String> memberPermissions = new LinkedHashMap<>();
     private final List<GroupPlacementData> placements = new ArrayList<>();
     private long lastModified;
 
@@ -63,6 +69,14 @@ public class HologramGroupData {
             members.put(u, n);
         }
 
+        int permCount = buf.readVarInt();
+        Map<UUID, String> perms = new LinkedHashMap<>();
+        for (int i = 0; i < permCount; i++) {
+            UUID u = buf.readUUID();
+            String p = buf.readUtf();
+            perms.put(u, p);
+        }
+
         int placementCount = buf.readVarInt();
         List<GroupPlacementData> placements = new ArrayList<>(placementCount);
         for (int i = 0; i < placementCount; i++) {
@@ -71,7 +85,9 @@ public class HologramGroupData {
 
         long lastModified = buf.readLong();
 
-        return new HologramGroupData(id, name, dimension, ownerUuid, ownerName, members, placements, lastModified);
+        HologramGroupData group = new HologramGroupData(id, name, dimension, ownerUuid, ownerName, members, placements, lastModified);
+        group.memberPermissions.putAll(perms);
+        return group;
     }
 
     public void write(RegistryFriendlyByteBuf buf) {
@@ -83,6 +99,12 @@ public class HologramGroupData {
 
         buf.writeVarInt(members.size());
         for (Map.Entry<UUID, String> entry : members.entrySet()) {
+            buf.writeUUID(entry.getKey());
+            buf.writeUtf(entry.getValue());
+        }
+
+        buf.writeVarInt(memberPermissions.size());
+        for (Map.Entry<UUID, String> entry : memberPermissions.entrySet()) {
             buf.writeUUID(entry.getKey());
             buf.writeUtf(entry.getValue());
         }
@@ -111,6 +133,15 @@ public class HologramGroupData {
             membersArr.add(m);
         }
         obj.add("members", membersArr);
+
+        JsonArray permsArr = new JsonArray();
+        for (Map.Entry<UUID, String> entry : memberPermissions.entrySet()) {
+            JsonObject p = new JsonObject();
+            p.addProperty("uuid", entry.getKey().toString());
+            p.addProperty("permission", entry.getValue());
+            permsArr.add(p);
+        }
+        obj.add("permissions", permsArr);
 
         JsonArray placementsArr = new JsonArray();
         for (GroupPlacementData p : placements) {
@@ -144,6 +175,21 @@ public class HologramGroupData {
             }
         }
 
+        Map<UUID, String> perms = new LinkedHashMap<>();
+        if (obj.has("permissions") && obj.get("permissions").isJsonArray()) {
+            for (JsonElement el : obj.getAsJsonArray("permissions")) {
+                if (el.isJsonObject()) {
+                    JsonObject p = el.getAsJsonObject();
+                    try {
+                        UUID u = UUID.fromString(p.get("uuid").getAsString());
+                        String perm = p.has("permission") ? p.get("permission").getAsString() : PERM_READ;
+                        perms.put(u, perm);
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        }
+
         List<GroupPlacementData> placements = new ArrayList<>();
         if (obj.has("placements") && obj.get("placements").isJsonArray()) {
             for (JsonElement el : obj.getAsJsonArray("placements")) {
@@ -170,7 +216,9 @@ public class HologramGroupData {
 
         long lastModified = obj.has("lastModified") ? obj.get("lastModified").getAsLong() : System.currentTimeMillis();
 
-        return new HologramGroupData(id, name, dimension, ownerUuid, ownerName, members, placements, lastModified);
+        HologramGroupData group = new HologramGroupData(id, name, dimension, ownerUuid, ownerName, members, placements, lastModified);
+        group.memberPermissions.putAll(perms);
+        return group;
     }
 
     public String getId() {
@@ -216,6 +264,7 @@ public class HologramGroupData {
 
     public void removeMember(UUID uuid) {
         this.members.remove(uuid);
+        this.memberPermissions.remove(uuid);
         this.lastModified = System.currentTimeMillis();
     }
 
@@ -223,8 +272,68 @@ public class HologramGroupData {
         return this.ownerUuid != null && this.ownerUuid.equals(uuid);
     }
 
+    public boolean isOwner(UUID uuid, String playerName) {
+        if (isOwner(uuid)) return true;
+        return playerName != null && this.ownerName != null && playerName.equalsIgnoreCase(this.ownerName);
+    }
+
     public boolean isMember(UUID uuid) {
         return this.members.containsKey(uuid);
+    }
+
+    public boolean isMember(UUID uuid, String playerName) {
+        if (isMember(uuid)) return true;
+        if (playerName != null) {
+            for (String n : this.members.values()) {
+                if (n.equalsIgnoreCase(playerName)) return true;
+            }
+        }
+        return false;
+    }
+
+    public String getMemberPermission(UUID uuid) {
+        return getMemberPermission(uuid, null);
+    }
+
+    public String getMemberPermission(UUID uuid, String playerName) {
+        if (isOwner(uuid, playerName)) {
+            return PERM_ALL;
+        }
+        if (uuid != null && this.memberPermissions.containsKey(uuid)) {
+            return this.memberPermissions.get(uuid);
+        }
+        if (playerName != null) {
+            for (Map.Entry<UUID, String> entry : this.members.entrySet()) {
+                if (entry.getValue().equalsIgnoreCase(playerName)) {
+                    return this.memberPermissions.getOrDefault(entry.getKey(), PERM_READ);
+                }
+            }
+        }
+        return PERM_READ;
+    }
+
+    public void setMemberPermission(UUID uuid, String permission) {
+        if (uuid == null) return;
+        if (permission == null || (!permission.equals(PERM_ALL) && !permission.equals(PERM_EDIT) && !permission.equals(PERM_ADD))) {
+            permission = PERM_READ;
+        }
+        this.memberPermissions.put(uuid, permission);
+        this.lastModified = System.currentTimeMillis();
+    }
+
+    public int getPlacementCountForMember(UUID memberUuid) {
+        if (memberUuid == null) return 0;
+        int count = 0;
+        for (GroupPlacementData p : this.placements) {
+            if (p.getCreatorUuid() != null) {
+                if (memberUuid.equals(p.getCreatorUuid())) {
+                    count++;
+                }
+            } else if (this.ownerUuid != null && this.ownerUuid.equals(memberUuid)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     public List<GroupPlacementData> getPlacements() {
@@ -279,5 +388,18 @@ public class HologramGroupData {
 
     public void setLastModified(long lastModified) {
         this.lastModified = lastModified;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        HologramGroupData that = (HologramGroupData) o;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

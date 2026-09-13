@@ -21,6 +21,7 @@ public class ModPackets {
         PayloadTypeRegistry.serverboundPlay().register(KickMemberHologramGroupPayload.TYPE, KickMemberHologramGroupPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(TransferOwnershipHologramGroupPayload.TYPE, TransferOwnershipHologramGroupPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(UpdateHologramPlacementPayload.TYPE, UpdateHologramPlacementPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(UpdateMemberPermissionPayload.TYPE, UpdateMemberPermissionPayload.CODEC);
 
         // Clientbound (S2C)
         PayloadTypeRegistry.clientboundPlay().register(SchematicListPayload.TYPE, SchematicListPayload.CODEC);

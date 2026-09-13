@@ -3,6 +3,8 @@ package com.schematicsynchronizer.client.gui;
 import com.schematicsynchronizer.client.ClientHologramGroupManager;
 import com.schematicsynchronizer.client.ClientSchematicManager;
 import com.schematicsynchronizer.data.GroupPlacementData;
+import com.schematicsynchronizer.data.HologramGroupData;
+import fi.dy.masa.litematica.gui.GuiSchematicPlacementsList;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
 import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.gui.GuiTextFieldGeneric;
@@ -19,6 +21,7 @@ import java.util.UUID;
 public class GuiCreateHologramGroup extends GuiBase {
     private final SchematicPlacement initialPlacement;
     private GuiTextFieldGeneric nameField;
+    private ButtonGeneric btnCreate;
 
     public GuiCreateHologramGroup(Screen parent, SchematicPlacement initialPlacement) {
         this.setParent(parent);
@@ -26,37 +29,70 @@ public class GuiCreateHologramGroup extends GuiBase {
         this.title = StringUtils.translate("schematic_synchronizer.gui.create_group.title");
     }
 
+    private boolean isGroupNameTaken(String name) {
+        if (name == null || name.trim().isEmpty()) return false;
+        String clean = name.trim();
+        for (HologramGroupData g : ClientHologramGroupManager.getInstance().getGroups()) {
+            if (g.getName().equalsIgnoreCase(clean)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String getUniqueDefaultName(String base) {
+        String name = base;
+        int counter = 1;
+        while (isGroupNameTaken(name)) {
+            name = base + " " + (++counter);
+        }
+        return name;
+    }
+
+    @Override
+    protected void closeGui(boolean openParent) {
+        if (openParent) {
+            if (this.getParent() != null) {
+                GuiBase.openGui(this.getParent());
+            } else {
+                GuiBase.openGui(new GuiSchematicPlacementsList());
+            }
+        } else {
+            super.closeGui(false);
+        }
+    }
+
     @Override
     public void initGui() {
         super.initGui();
 
         int dialogW = 320;
-        int dialogH = 120;
+        int dialogH = 130;
         int x = (this.width - dialogW) / 2;
         int y = (this.height - dialogH) / 2;
 
         String defaultName = "";
         if (this.initialPlacement != null) {
-            defaultName = this.initialPlacement.getName();
-        }
-        if (defaultName == null || defaultName.trim().isEmpty()) {
-            int count = ClientHologramGroupManager.getInstance().getGroups().size() + 1;
-            defaultName = StringUtils.translate("schematic_synchronizer.gui.create_group.default_name", count);
+            defaultName = getUniqueDefaultName(this.initialPlacement.getName());
+        } else {
+            int existingCount = ClientHologramGroupManager.getInstance().getGroups().size();
+            defaultName = getUniqueDefaultName(StringUtils.translate("schematic_synchronizer.gui.create_group.default_name", existingCount + 1));
         }
 
-        this.nameField = new GuiTextFieldGeneric(x + 14, y + 46, dialogW - 28, 20, this.font);
+        this.nameField = new GuiTextFieldGeneric(x + 14, y + 44, dialogW - 28, 20, this.font);
         this.nameField.setTextWrapper(defaultName);
+        this.nameField.setFocused(true);
         this.addTextField(this.nameField, null);
 
-        int btnY = y + dialogH - 32;
+        int btnY = y + dialogH - 28;
 
-        // Button: Create Group
+        // Button: Create
         String createLabel = StringUtils.translate("schematic_synchronizer.gui.create_group.create_button");
-        int createW = this.getStringWidth(createLabel) + 16;
-        ButtonGeneric btnCreate = new ButtonGeneric(x + 14, btnY, createW, 20, createLabel);
-        addButton(btnCreate, (btn, mouse) -> {
+        int createW = this.getStringWidth(createLabel) + 20;
+        this.btnCreate = new ButtonGeneric(x + 14, btnY, createW, 20, createLabel);
+        addButton(this.btnCreate, (btn, mouse) -> {
             String name = this.nameField.getTextWrapper().trim();
-            if (!name.isEmpty()) {
+            if (!name.isEmpty() && !isGroupNameTaken(name)) {
                 List<GroupPlacementData> initialList = new ArrayList<>();
                 if (this.initialPlacement != null) {
                     String schemId = ClientSchematicManager.getInstance().getSchematicIdForPlacement(this.initialPlacement);
@@ -66,6 +102,7 @@ public class GuiCreateHologramGroup extends GuiBase {
                         }
                     }
                     if (schemId == null) schemId = "";
+                    ClientSchematicManager.getInstance().ensureSchematicUploaded(this.initialPlacement, schemId);
                     String pId = UUID.randomUUID().toString().substring(0, 8);
                     initialList.add(new GroupPlacementData(
                             pId,
@@ -95,24 +132,36 @@ public class GuiCreateHologramGroup extends GuiBase {
         super.drawScreenBackground(ctx, mouseX, mouseY);
 
         int dialogW = 320;
-        int dialogH = 120;
+        int dialogH = 130;
         int x = (this.width - dialogW) / 2;
         int y = (this.height - dialogH) / 2;
 
-        RenderUtils.drawOutlinedBox(ctx, x, y, dialogW, dialogH, 0xF0101010, 0xFFFFAA00);
+        RenderUtils.drawOutlinedBox(ctx, x, y, dialogW, dialogH, 0xF0101010, 0xFFFFFFFF);
     }
 
     @Override
     public void drawContents(GuiContext ctx, int mouseX, int mouseY, float partialTicks) {
         int dialogW = 320;
-        int dialogH = 120;
+        int dialogH = 130;
         int x = (this.width - dialogW) / 2;
         int y = (this.height - dialogH) / 2;
 
-        String titleStr = "§6§l" + StringUtils.translate("schematic_synchronizer.gui.create_group.title");
-        this.drawStringWithShadow(ctx, titleStr, x + 14, y + 12, 0xFFFFAA00);
+        String titleStr = StringUtils.translate("schematic_synchronizer.gui.create_group.title");
+        this.drawStringWithShadow(ctx, titleStr, x + 14, y + 12, 0xFFFFFFFF);
 
         this.drawString(ctx, "§7" + StringUtils.translate("schematic_synchronizer.gui.create_group.field.name"), x + 14, y + 32, 0xFFAAAAAA);
+
+        String entered = this.nameField != null ? this.nameField.getTextWrapper().trim() : "";
+        boolean isDuplicate = isGroupNameTaken(entered);
+        boolean isEmpty = entered.isEmpty();
+
+        if (this.btnCreate != null) {
+            this.btnCreate.setEnabled(!isDuplicate && !isEmpty);
+        }
+
+        if (isDuplicate) {
+            this.drawString(ctx, "§c" + StringUtils.translate("schematic_synchronizer.gui.create_group.name_exists"), x + 14, y + 70, 0xFFFF5555);
+        }
 
         super.drawContents(ctx, mouseX, mouseY, partialTicks);
     }

@@ -2,7 +2,7 @@ package com.schematicsynchronizer.client.gui;
 
 import com.schematicsynchronizer.client.ClientSchematicManager;
 import com.schematicsynchronizer.client.ClientHologramGroupManager;
-
+import com.schematicsynchronizer.data.HologramGroupData;
 import com.schematicsynchronizer.data.PlayerPlacementInfo;
 import com.schematicsynchronizer.data.ServerSchematicInfo;
 import fi.dy.masa.litematica.data.DataManager;
@@ -55,6 +55,7 @@ public class GuiServerSchematicsList extends GuiListBase<ServerBrowserEntry, Wid
 
         // Automatically scan and request fresh catalog from server on each GUI open
         ClientSchematicManager.getInstance().requestRefresh();
+        ClientHologramGroupManager.getInstance().requestGroups();
     }
 
     public void reCreateButtons() {
@@ -137,6 +138,7 @@ public class GuiServerSchematicsList extends GuiListBase<ServerBrowserEntry, Wid
         if (now - this.lastAutoRefreshTime >= 1000L) {
             this.lastAutoRefreshTime = now;
             ClientSchematicManager.getInstance().requestRefresh();
+            ClientHologramGroupManager.getInstance().requestGroups();
         }
         super.drawContents(ctx, mouseX, mouseY, partialTicks);
         drawSelectedEntryInfo(ctx, mouseX, mouseY);
@@ -287,29 +289,27 @@ public class GuiServerSchematicsList extends GuiListBase<ServerBrowserEntry, Wid
             RenderUtils.drawRect(ctx, contentX, curY, maxTextW, 1, 0x40FFFFFF);
             curY += 6;
 
-            List<PlayerPlacementInfo> placements = selected.getPlacements();
-            String placHdr = StringUtils.translate("schematic_synchronizer.gui.info.placements_header", placements.size());
-            this.drawStringWithShadow(ctx, "§6" + placHdr, contentX, curY, 0xFFFFAA00);
+            List<HologramGroupData> groups = ClientHologramGroupManager.getInstance().getGroupsForSchematic(info);
+            String groupHdr = StringUtils.translate("schematic_synchronizer.gui.info.groups_header", groups.size());
+            this.drawStringWithShadow(ctx, "§6" + groupHdr, contentX, curY, 0xFFFFAA00);
             curY += 12;
 
-            if (placements.isEmpty()) {
-                this.drawString(ctx, "  §7" + StringUtils.translate("schematic_synchronizer.gui.info.no_placements"), contentX, curY, 0xFFAAAAAA);
+            if (groups.isEmpty()) {
+                this.drawString(ctx, "  §7" + StringUtils.translate("schematic_synchronizer.gui.info.no_groups"), contentX, curY, 0xFFAAAAAA);
             } else {
-                for (int i = 0; i < placements.size(); i++) {
-                    if (curY + 32 > boxY + boxH) {
-                        String moreStr = StringUtils.translate("schematic_synchronizer.gui.info.more_placements", placements.size() - i);
+                for (int i = 0; i < groups.size(); i++) {
+                    if (curY + 22 > boxY + boxH) {
+                        String moreStr = StringUtils.translate("schematic_synchronizer.gui.info.more_groups", groups.size() - i);
                         this.drawString(ctx, "  §7" + moreStr, contentX, curY, 0xFF888888);
                         break;
                     }
-                    PlayerPlacementInfo p = placements.get(i);
-                    String prefix = "§7• §b";
-                    this.drawString(ctx, prefix + p.getOwnerName() + ":", contentX, curY, 0xFF55FFFF);
+                    HologramGroupData g = groups.get(i);
+                    String prefix = "§7• §e";
+                    this.drawString(ctx, prefix + g.getName(), contentX, curY, 0xFFFFAA00);
                     curY += 10;
-                    this.drawString(ctx, "   §f" + p.getPos().toShortString(), contentX, curY, 0xFFFFFFFF);
-                    curY += 10;
-                    String dim = p.getDimension();
+                    String dim = g.getDimension();
                     if (dim.contains(":")) dim = dim.substring(dim.indexOf(':') + 1);
-                    this.drawString(ctx, "   §7" + dim + " (" + p.getRotation() + ")", contentX, curY, 0xFFAAAAAA);
+                    this.drawString(ctx, "   §7" + dim + " (" + StringUtils.translate("schematic_synchronizer.gui.group.placements_count", g.getPlacements().size()) + ")", contentX, curY, 0xFFAAAAAA);
                     curY += 12;
                 }
             }

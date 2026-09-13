@@ -17,10 +17,8 @@ public class WidgetListGroupMembers extends WidgetListBase<Map.Entry<UUID, Strin
         this.parent = parent;
         this.browserEntryHeight = 26;
 
-        int searchWidth = Math.min(160, Math.max(100, width / 3));
-        int searchX = x + width - searchWidth - 4;
-        this.widgetSearchBar = new WidgetSearchBar(searchX, y + 4, searchWidth, 14, 0, Icons.FILE_ICON_SEARCH, LeftRight.RIGHT);
-        this.browserEntriesOffsetY = 22;
+        this.widgetSearchBar = new WidgetSearchBar(x + 2, y + 4, width - 14, 14, 0, Icons.FILE_ICON_SEARCH, LeftRight.LEFT);
+        this.browserEntriesOffsetY = this.widgetSearchBar.getHeight() + 3;
     }
 
     public GuiManageGroupMembers getParentGui() {
@@ -42,13 +40,15 @@ public class WidgetListGroupMembers extends WidgetListBase<Map.Entry<UUID, Strin
     protected Collection<Map.Entry<UUID, String>> getAllEntries() {
         HologramGroupData group = this.parent.getGroup();
         if (group == null) return Collections.emptyList();
-        List<Map.Entry<UUID, String>> list = new ArrayList<>(group.getMembers().entrySet());
-        list.sort((a, b) -> {
-            boolean aOwner = group.isOwner(a.getKey());
-            boolean bOwner = group.isOwner(b.getKey());
-            if (aOwner != bOwner) return aOwner ? -1 : 1;
+        List<Map.Entry<UUID, String>> entries = new ArrayList<>(group.getMembers().entrySet());
+        UUID owner = group.getOwnerUuid();
+        entries.sort((a, b) -> {
+            boolean aOwner = a.getKey().equals(owner);
+            boolean bOwner = b.getKey().equals(owner);
+            if (aOwner && !bOwner) return -1;
+            if (!aOwner && bOwner) return 1;
             return a.getValue().compareToIgnoreCase(b.getValue());
         });
-        return list;
+        return entries;
     }
 }

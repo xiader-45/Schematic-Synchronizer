@@ -1,6 +1,8 @@
 package com.schematicsynchronizer.client.mixin;
 
+import com.schematicsynchronizer.client.gui.ButtonHologramGroups;
 import com.schematicsynchronizer.client.gui.ButtonServerSchematics;
+import com.schematicsynchronizer.client.gui.GuiHologramGroups;
 import com.schematicsynchronizer.client.gui.GuiServerSchematicsList;
 import fi.dy.masa.litematica.gui.GuiMainMenu;
 import fi.dy.masa.malilib.gui.GuiBase;
@@ -16,7 +18,7 @@ import java.lang.reflect.Method;
 public abstract class MixinGuiMainMenu extends GuiBase {
 
     @Inject(method = "initGui", at = @At("RETURN"), remap = false)
-    private void addServerSchematicsButton(CallbackInfo ci) {
+    private void addServerButtons(CallbackInfo ci) {
         int buttonWidth = 160;
         try {
             Method m = GuiMainMenu.class.getDeclaredMethod("getButtonWidth");
@@ -25,14 +27,22 @@ public abstract class MixinGuiMainMenu extends GuiBase {
         } catch (Throwable ignored) {
         }
 
-        // Place in column 2 directly below the "CONFIGURATION" button
+        // Column 2, directly below the "CONFIGURATION" button
         int x = 12 + buttonWidth + 20;
-        int y = 52;
+        int ySchem = 52;
 
-        String label = StringUtils.translate("schematic_synchronizer.gui.button.server_schematics");
-        ButtonServerSchematics button = new ButtonServerSchematics(x, y, buttonWidth, 20, label);
-        addButton(button, (btn, mouseButton) -> {
+        String schemLabel = StringUtils.translate("schematic_synchronizer.gui.button.server_schematics");
+        ButtonServerSchematics btnSchem = new ButtonServerSchematics(x, ySchem, buttonWidth, 20, schemLabel);
+        addButton(btnSchem, (btn, mouseButton) -> {
             GuiBase.openGui(new GuiServerSchematicsList(this));
+        });
+
+        // Directly below our server schematics button: y = 52 + 22 = 74
+        int yGroups = 74;
+        String groupLabel = StringUtils.translate("schematic_synchronizer.gui.button.hologram_groups");
+        ButtonHologramGroups btnGroups = new ButtonHologramGroups(x, yGroups, buttonWidth, 20, groupLabel);
+        addButton(btnGroups, (btn, mouseButton) -> {
+            GuiBase.openGui(new GuiHologramGroups(this));
         });
     }
 }

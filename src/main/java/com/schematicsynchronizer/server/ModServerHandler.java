@@ -151,5 +151,12 @@ public class ModServerHandler {
                 ServerHologramGroupManager.getInstance().updatePlacement(context.server(), player, payload);
             });
         });
+
+        ServerPlayNetworking.registerGlobalReceiver(UpdateMemberPermissionPayload.TYPE, (payload, context) -> {
+            ServerPlayer player = context.player();
+            context.server().execute(() -> {
+                ServerHologramGroupManager.getInstance().updateMemberPermission(context.server(), player, payload.groupId(), payload.memberUuid(), payload.permission());
+            });
+        });
     }
 }

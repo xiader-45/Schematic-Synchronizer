@@ -1,6 +1,7 @@
 package com.schematicsynchronizer.client.gui;
 
 import com.schematicsynchronizer.client.ClientHologramGroupManager;
+import com.schematicsynchronizer.data.GroupPlacementData;
 import com.schematicsynchronizer.data.HologramGroupData;
 import fi.dy.masa.litematica.gui.Icons;
 import fi.dy.masa.malilib.gui.LeftRight;
@@ -23,14 +24,16 @@ public class WidgetListHologramGroups extends WidgetListBase<HologramGroupData, 
         this.parent = parent;
         this.browserEntryHeight = 24;
 
-        int searchWidth = Math.min(140, Math.max(80, width / 3));
-        int searchX = x + width - searchWidth - 4;
-        this.widgetSearchBar = new WidgetSearchBar(searchX, y + 4, searchWidth, 14, 0, Icons.FILE_ICON_SEARCH, LeftRight.RIGHT);
-        this.browserEntriesOffsetY = 22;
+        this.widgetSearchBar = new WidgetSearchBar(x + 2, y + 4, width - 14, 14, 0, Icons.FILE_ICON_SEARCH, LeftRight.LEFT);
+        this.browserEntriesOffsetY = this.widgetSearchBar.getHeight() + 3;
     }
 
     public GuiHologramGroups getParentGui() {
         return this.parent;
+    }
+
+    public int getLastSelectedEntryIndex() {
+        return this.lastSelectedEntryIndex;
     }
 
     @Override
@@ -41,6 +44,10 @@ public class WidgetListHologramGroups extends WidgetListBase<HologramGroupData, 
         list.add(entry.getSchematicId().toLowerCase(Locale.ROOT));
         list.add(entry.getOwnerName().toLowerCase(Locale.ROOT));
         list.add(entry.getDimension().toLowerCase(Locale.ROOT));
+        for (GroupPlacementData p : entry.getPlacements()) {
+            list.add(p.getName().toLowerCase(Locale.ROOT));
+            list.add(p.getSchematicId().toLowerCase(Locale.ROOT));
+        }
         return list;
     }
 
@@ -52,21 +59,6 @@ public class WidgetListHologramGroups extends WidgetListBase<HologramGroupData, 
     @Override
     protected Collection<HologramGroupData> getAllEntries() {
         List<HologramGroupData> all = new ArrayList<>(ClientHologramGroupManager.getInstance().getGroups());
-
-        String filter = this.getFilterText();
-        if (filter != null && !filter.trim().isEmpty()) {
-            String search = filter.trim().toLowerCase(Locale.ROOT);
-            List<HologramGroupData> filtered = new ArrayList<>();
-            for (HologramGroupData g : all) {
-                if (g.getName().toLowerCase(Locale.ROOT).contains(search)
-                        || g.getSchematicId().toLowerCase(Locale.ROOT).contains(search)
-                        || g.getOwnerName().toLowerCase(Locale.ROOT).contains(search)) {
-                    filtered.add(g);
-                }
-            }
-            all = filtered;
-        }
-
         all.sort(COMPARATOR);
         return all;
     }

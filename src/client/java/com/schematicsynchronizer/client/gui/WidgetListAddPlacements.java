@@ -18,16 +18,19 @@ public class WidgetListAddPlacements extends WidgetListBase<SchematicPlacement, 
                                   ISelectionListener<SchematicPlacement> selectionListener) {
         super(x, y, width, height, selectionListener);
         this.parent = parent;
-        this.browserEntryHeight = 24;
+        this.browserEntryHeight = 22;
 
-        int searchWidth = Math.min(140, Math.max(80, width / 3));
-        int searchX = x + width - searchWidth - 4;
-        this.widgetSearchBar = new WidgetSearchBar(searchX, y + 4, searchWidth, 14, 0, Icons.FILE_ICON_SEARCH, LeftRight.RIGHT);
-        this.browserEntriesOffsetY = 22;
+        this.widgetSearchBar = new WidgetSearchBar(x + 2, y + 4, width - 14, 14, 0, Icons.FILE_ICON_SEARCH, LeftRight.LEFT);
+        this.browserEntriesOffsetY = this.widgetSearchBar.getHeight() + 3;
     }
 
     public GuiAddPlacementsToGroup getParentGui() {
         return this.parent;
+    }
+
+    @Override
+    protected Collection<SchematicPlacement> getAllEntries() {
+        return DataManager.getSchematicPlacementManager().getAllSchematicsPlacements();
     }
 
     @Override
@@ -43,12 +46,9 @@ public class WidgetListAddPlacements extends WidgetListBase<SchematicPlacement, 
 
     @Override
     protected WidgetAddPlacementEntry createListEntryWidget(int x, int y, int listIndex, boolean isOdd, SchematicPlacement entry) {
-        boolean inGroup = this.parent.isAlreadyInGroup(entry);
-        return new WidgetAddPlacementEntry(x, y, this.browserEntryWidth, getBrowserEntryHeightFor(entry), entry, listIndex, this, inGroup);
-    }
-
-    @Override
-    protected Collection<SchematicPlacement> getAllEntries() {
-        return DataManager.getSchematicPlacementManager().getAllSchematicsPlacements();
+        boolean alreadyInGroup = this.parent.isAlreadyInGroup(entry);
+        return new WidgetAddPlacementEntry(x, y, this.browserEntryWidth, getBrowserEntryHeightFor(entry),
+                entry, listIndex, this, alreadyInGroup);
     }
 }
+

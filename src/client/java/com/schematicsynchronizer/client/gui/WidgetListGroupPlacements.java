@@ -6,6 +6,8 @@ import fi.dy.masa.litematica.gui.Icons;
 import fi.dy.masa.malilib.gui.LeftRight;
 import fi.dy.masa.malilib.gui.widgets.WidgetListBase;
 import fi.dy.masa.malilib.gui.widgets.WidgetSearchBar;
+import fi.dy.masa.malilib.render.GuiContext;
+import fi.dy.masa.malilib.util.StringUtils;
 
 import java.util.*;
 
@@ -18,10 +20,8 @@ public class WidgetListGroupPlacements extends WidgetListBase<GroupPlacementData
         this.parent = parent;
         this.browserEntryHeight = 26;
 
-        int searchWidth = Math.min(160, Math.max(100, width / 3));
-        int searchX = x + width - searchWidth - 4;
-        this.widgetSearchBar = new WidgetSearchBar(searchX, y + 4, searchWidth, 14, 0, Icons.FILE_ICON_SEARCH, LeftRight.RIGHT);
-        this.browserEntriesOffsetY = 22;
+        this.widgetSearchBar = new WidgetSearchBar(x + 2, y + 4, width - 14, 14, 0, Icons.FILE_ICON_SEARCH, LeftRight.LEFT);
+        this.browserEntriesOffsetY = this.widgetSearchBar.getHeight() + 3;
     }
 
     public GuiManageHologramGroup getParentGui() {
@@ -47,5 +47,17 @@ public class WidgetListGroupPlacements extends WidgetListBase<GroupPlacementData
         HologramGroupData group = this.parent.getGroup();
         if (group == null) return Collections.emptyList();
         return group.getPlacements();
+    }
+
+    @Override
+    public void drawContents(GuiContext ctx, int mouseX, int mouseY, float partialTicks) {
+        super.drawContents(ctx, mouseX, mouseY, partialTicks);
+        if (this.getAllEntries().isEmpty()) {
+            String notice = StringUtils.translate("schematic_synchronizer.gui.manage_group.no_placements");
+            int nw = this.getStringWidth(notice);
+            int nx = this.posX + (this.browserWidth - nw) / 2;
+            int ny = this.posY + (this.browserHeight / 2) - 4;
+            this.drawString(ctx, "§7" + notice, nx, ny, 0xFFAAAAAA);
+        }
     }
 }

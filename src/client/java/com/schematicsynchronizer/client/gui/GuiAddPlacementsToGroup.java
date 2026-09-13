@@ -12,7 +12,12 @@ import fi.dy.masa.malilib.gui.button.ButtonGeneric;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.client.gui.screens.Screen;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.UUID;
 
 public class GuiAddPlacementsToGroup extends GuiListBase<SchematicPlacement, WidgetAddPlacementEntry, WidgetListAddPlacements> {
     private final HologramGroupData group;
@@ -20,10 +25,11 @@ public class GuiAddPlacementsToGroup extends GuiListBase<SchematicPlacement, Wid
     private final Set<String> existingSchematicOrNames = new HashSet<>();
 
     public GuiAddPlacementsToGroup(Screen parent, HologramGroupData group) {
-        super(10, 26);
+        super(10, 30);
         this.setParent(parent);
         this.group = group;
-        this.title = StringUtils.translate("schematic_synchronizer.gui.add_placements.title", group != null ? group.getName() : "");
+        this.title = StringUtils.translate("schematic_synchronizer.gui.add_placements.title",
+                group != null ? group.getName() : "");
 
         if (group != null) {
             for (GroupPlacementData p : group.getPlacements()) {
@@ -76,6 +82,9 @@ public class GuiAddPlacementsToGroup extends GuiListBase<SchematicPlacement, Wid
         int addW = this.getStringWidth(addLabel) + 20;
         ButtonGeneric btnAdd = new ButtonGeneric(x, y, addW, 20, addLabel);
         btnAdd.setEnabled(selectedCount > 0 && this.group != null);
+        if (selectedCount <= 0) {
+            btnAdd.setHoverStrings(StringUtils.translate("schematic_synchronizer.gui.add_placements.hover.select_at_least_one"));
+        }
         addButton(btnAdd, (btn, mouse) -> {
             if (this.group != null && !selectedPlacementIds.isEmpty()) {
                 List<GroupPlacementData> list = new ArrayList<>();

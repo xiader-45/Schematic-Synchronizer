@@ -179,10 +179,13 @@ public class ServerHologramGroupManager {
     public void addPlacements(MinecraftServer server, ServerPlayer player, AddGroupPlacementsPayload payload) {
         HologramGroupData group = findGroupById(payload.groupId());
         if (group == null) return;
-        if (!canPlayerManageGroup(server, player, group)) return;
+        if (!canPlayerAddPlacements(server, player, group)) return;
 
         if (payload.placements() != null) {
             for (GroupPlacementData p : payload.placements()) {
+                if (p.getCreatorUuid() == null) {
+                    p.setCreatorUuid(player.getUUID());
+                }
                 group.addPlacement(p);
             }
             saveGroup(server, group);
@@ -193,7 +196,7 @@ public class ServerHologramGroupManager {
     public void removePlacement(MinecraftServer server, ServerPlayer player, RemoveGroupPlacementPayload payload) {
         HologramGroupData group = findGroupById(payload.groupId());
         if (group == null) return;
-        if (!canPlayerManageGroup(server, player, group)) return;
+        if (!canPlayerManagePlacement(server, player, group)) return;
 
         group.removePlacement(payload.placementId());
         saveGroup(server, group);
@@ -214,6 +217,30 @@ public class ServerHologramGroupManager {
             return true;
         }
         return isOpManagementAllowed(server, player);
+    }
+
+    public boolean canPlayerAddPlacements(MinecraftServer server, ServerPlayer player, HologramGroupData group) {
+        if (group == null || player == null) return false;
+        if (group.isOwner(player.getUUID()) || isOpManagementAllowed(server, player)) return true;
+        String perm = group.getMemberPermission(player.getUUID());
+        return HologramGroupData.PERM_ALL.equals(perm) || HologramGroupData.PERM_ADD.equals(perm);
+    }
+
+    public boolean canPlayerManagePlacement(MinecraftServer server, ServerPlayer player, HologramGroupData group) {
+        if (group == null || player == null) return false;
+        if (group.isOwner(player.getUUID()) || isOpManagementAllowed(server, player)) return true;
+        String perm = group.getMemberPermission(player.getUUID());
+        return HologramGroupData.PERM_ALL.equals(perm) || HologramGroupData.PERM_EDIT.equals(perm);
+    }
+
+    public void updateMemberPermission(MinecraftServer server, ServerPlayer player, String groupId, UUID memberUuid, String permission) {
+        HologramGroupData group = findGroupById(groupId);
+        if (group == null || memberUuid == null) return;
+        if (!canPlayerManageGroup(server, player, group)) return;
+
+        group.setMemberPermission(memberUuid, permission);
+        saveGroup(server, group);
+        broadcastGroups(server, group.getDimension());
     }
 
     public boolean isOpManagementAllowed(MinecraftServer server, ServerPlayer player) {
@@ -324,8 +351,8 @@ public class ServerHologramGroupManager {
         HologramGroupData group = findGroupById(payload.groupId());
         if (group == null) return;
 
-        // Security: owner or OP can update placement!
-        if (!canPlayerManageGroup(server, player, group)) {
+        // Security: owner, OP, or member with edit permission can update placement!
+        if (!canPlayerManagePlacement(server, player, group)) {
             return;
         }
 
@@ -335,12 +362,7 @@ public class ServerHologramGroupManager {
             placement.setRotation(payload.rotation());
             placement.setMirror(payload.mirror());
             placement.setLocked(payload.locked());
-        } else if (!group.getPlacements().isEmpty()) {
-            GroupPlacementData first = group.getPlacements().get(0);
-            first.setOrigin(payload.origin());
-            first.setRotation(payload.rotation());
-            first.setMirror(payload.mirror());
-            first.setLocked(payload.locked());
+            placement.setEnabled(payload.enabled());
         }
 
         group.setLastModified(System.currentTimeMillis());
@@ -360,13 +382,12 @@ public class ServerHologramGroupManager {
     }
 
     public void broadcastGroups(MinecraftServer server, String dimension) {
-        if (server == null || dimension == null) return;
-        List<HologramGroupData> list = getGroupsForDimension(dimension);
-        SyncHologramGroupsPayload payload = new SyncHologramGroupsPayload(dimension, list);
+        if (server == null) return;
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-            if (p.level().dimension().identifier().toString().equals(dimension)) {
-                ServerPlayNetworking.send(p, payload);
-            }
+            String pDim = p.level().dimension().identifier().toString();
+            List<HologramGroupData> list = getGroupsForDimension(pDim);
+            boolean canOp = isOpManagementAllowed(server, p);
+            ServerPlayNetworking.send(p, new SyncHologramGroupsPayload(pDim, list, canOp));
         }
     }
 }

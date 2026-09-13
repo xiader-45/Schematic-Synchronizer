@@ -4,8 +4,10 @@ import com.schematicsynchronizer.client.ClientHologramGroupManager;
 import com.schematicsynchronizer.data.HologramGroupData;
 import com.schematicsynchronizer.network.LeaveHologramGroupPayload;
 import fi.dy.masa.malilib.gui.GuiBase;
+import fi.dy.masa.malilib.gui.GuiConfirmAction;
 import fi.dy.masa.malilib.gui.GuiListBase;
 import fi.dy.masa.malilib.gui.button.ButtonGeneric;
+import fi.dy.masa.malilib.interfaces.IConfirmationListener;
 import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.client.Minecraft;
@@ -15,53 +17,19 @@ import java.util.Map;
 import java.util.UUID;
 
 public class GuiManageGroupMembers extends GuiListBase<Map.Entry<UUID, String>, WidgetGroupMemberEntry, WidgetListGroupMembers> {
-    private final String groupId;
-    private HologramGroupData group;
+    private final HologramGroupData group;
 
     public GuiManageGroupMembers(Screen parent, HologramGroupData group) {
         super(10, 48);
         this.setParent(parent);
-        this.groupId = group != null ? group.getId() : "";
         this.group = group;
-        this.title = StringUtils.translate("schematic_synchronizer.gui.manage_group.title");
+        this.title = StringUtils.translate("schematic_synchronizer.gui.manage_group.title_named", group != null ? group.getName() : "");
     }
 
     public HologramGroupData getGroup() {
-        if (this.groupId != null && !this.groupId.isEmpty()) {
-            HologramGroupData latest = ClientHologramGroupManager.getInstance().getGroupById(this.groupId);
-            if (latest != null) {
-                this.group = latest;
-            }
-        }
-        return this.group;
-    }
-
-    public boolean canManage() {
-        HologramGroupData g = getGroup();
-        if (g == null) return false;
-        Minecraft mc = Minecraft.getInstance();
-        UUID myUuid = (mc.player != null) ? mc.getUser().getProfileId() : null;
-        boolean isOwner = (myUuid != null && g.isOwner(myUuid));
-        boolean isOp = ClientHologramGroupManager.getInstance().canOpManage();
-        return isOwner || isOp;
-    }
-
-    public void closeScreen() {
-        this.closeGui(true);
-    }
-
-    @Override
-    public void initGui() {
-        super.initGui();
-        this.reCreateButtons();
-        ClientHologramGroupManager.getInstance().setGuiRefreshCallback(this::refreshList);
-    }
-
-    public void refreshList() {
-        if (this.getListWidget() != null) {
-            this.getListWidget().refreshEntries();
-        }
-        this.reCreateButtons();
+        if (this.group == null) return null;
+        HologramGroupData latest = ClientHologramGroupManager.getInstance().getGroupById(this.group.getId());
+        return latest != null ? latest : this.group;
     }
 
     public void reCreateButtons() {
@@ -69,25 +37,28 @@ public class GuiManageGroupMembers extends GuiListBase<Map.Entry<UUID, String>, 
         this.createButtons();
     }
 
-    @Override
-    public void removed() {
-        super.removed();
-        ClientHologramGroupManager.getInstance().setGuiRefreshCallback(null);
+    public void refreshList() {
+        if (getListWidget() != null) {
+            getListWidget().refreshEntries();
+        }
+        this.reCreateButtons();
     }
 
     @Override
-    protected int getBrowserWidth() {
-        return this.width - 20;
+    public void initGui() {
+        super.initGui();
+        this.reCreateButtons();
     }
 
-    @Override
-    protected int getBrowserHeight() {
-        return this.height - 76;
-    }
-
-    @Override
-    protected WidgetListGroupMembers createListWidget(int listX, int listY) {
-        return new WidgetListGroupMembers(listX, listY, getBrowserWidth(), getBrowserHeight(), this);
+    public boolean canManage() {
+        HologramGroupData g = getGroup();
+        if (g == null) return false;
+        Minecraft mc = Minecraft.getInstance();
+        UUID myUuid = (mc.player != null) ? mc.player.getUUID() : (mc.getUser() != null ? mc.getUser().getProfileId() : null);
+        if (myUuid == null) return false;
+        if (g.isOwner(myUuid)) return true;
+        if (mc.player != null && g.getOwnerName() != null && g.getOwnerName().equalsIgnoreCase(mc.player.getName().getString())) return true;
+        return ClientHologramGroupManager.getInstance().canOpManage();
     }
 
     private void createButtons() {
@@ -113,53 +84,123 @@ public class GuiManageGroupMembers extends GuiListBase<Map.Entry<UUID, String>, 
         ButtonGeneric btnTabM = new ButtonGeneric(x, tabY, tabMW, 20, tabMembersLabel);
         btnTabM.setEnabled(false);
         addButton(btnTabM, (btn, mouse) -> {});
+        x += tabMW + 4;
+
+        // Tab 3: Settings
+        String tabSettingsLabel = StringUtils.translate("schematic_synchronizer.gui.manage_group.tab_settings");
+        int tabSW = this.getStringWidth(tabSettingsLabel) + 16;
+        ButtonGeneric btnTabS = new ButtonGeneric(x, tabY, tabSW, 20, tabSettingsLabel);
+        addButton(btnTabS, (btn, mouse) -> {
+            GuiBase.openGui(new GuiManageGroupSettings(this.getParent(), this.getGroup()));
+        });
+
+        Minecraft mc = Minecraft.getInstance();
+        UUID myUuid = (mc.player != null) ? mc.player.getUUID() : (mc.getUser() != null ? mc.getUser().getProfileId() : null);
+        boolean isOp = ClientHologramGroupManager.getInstance().canOpManage();
+        boolean isOwner = (g != null && myUuid != null && g.isOwner(myUuid));
+        if (!isOwner && mc.player != null && g != null && g.getOwnerName() != null && g.getOwnerName().equalsIgnoreCase(mc.player.getName().getString())) {
+            isOwner = true;
+        }
 
         // Top Right: Take ownership (OP)
-        if (g != null) {
-            Minecraft mc = Minecraft.getInstance();
-            UUID myUuid = (mc.player != null) ? mc.getUser().getProfileId() : null;
-            boolean isOp = ClientHologramGroupManager.getInstance().canOpManage();
-            boolean isOwner = (myUuid != null && g.isOwner(myUuid));
-            if (isOp && !isOwner && myUuid != null) {
-                String takeLabel = StringUtils.translate("schematic_synchronizer.gui.manage_group.take_ownership_op");
-                int takeW = this.getStringWidth(takeLabel) + 16;
-                ButtonGeneric btnTake = new ButtonGeneric(this.width - takeW - 10, tabY, takeW, 20, takeLabel);
-                addButton(btnTake, (btn, mouse) -> {
-                    ClientHologramGroupManager.getInstance().transferOwnership(g.getId(), myUuid);
-                    closeGui(true);
-                });
-            }
+        if (g != null && isOp && !isOwner && myUuid != null) {
+            String takeLabel = StringUtils.translate("schematic_synchronizer.gui.manage_group.take_ownership_op");
+            int takeW = this.getStringWidth(takeLabel) + 16;
+            ButtonGeneric btnTake = new ButtonGeneric(this.width - takeW - 10, tabY, takeW, 20, takeLabel);
+            addButton(btnTake, (btn, mouse) -> {
+                ClientHologramGroupManager.getInstance().transferOwnership(g.getId(), myUuid);
+                if (this.getParent() != null) {
+                    GuiBase.openGui(this.getParent());
+                } else {
+                    this.closeGui(true);
+                }
+            });
         }
 
         // Bottom Bar
         int bottomY = this.height - 24;
 
-        if (canManage() && g != null) {
+        if (isOwner && g != null) {
             String delLabel = StringUtils.translate("schematic_synchronizer.gui.manage_group.delete_group");
             int delW = this.getStringWidth(delLabel) + 20;
             ButtonGeneric btnDel = new ButtonGeneric(10, bottomY, delW, 20, delLabel);
             btnDel.setHoverStrings(StringUtils.translate("schematic_synchronizer.gui.manage_group.hover.delete_group"));
             addButton(btnDel, (btn, mouse) -> {
-                ClientHologramGroupManager.getInstance().leaveGroup(g.getId(), LeaveHologramGroupPayload.ACTION_DELETE);
-                closeGui(true);
+                GuiBase.openGui(new GuiConfirmOwnerLeave(this, g));
+            });
+        } else if (isOp && g != null) {
+            String delLabel = StringUtils.translate("schematic_synchronizer.gui.button.delete_group_op");
+            int delW = this.getStringWidth(delLabel) + 20;
+            ButtonGeneric btnDel = new ButtonGeneric(10, bottomY, delW, 20, delLabel);
+            addButton(btnDel, (btn, mouse) -> {
+                IConfirmationListener listener = new IConfirmationListener() {
+                    @Override
+                    public boolean onActionConfirmed() {
+                        ClientHologramGroupManager.getInstance().leaveGroup(g.getId(), LeaveHologramGroupPayload.ACTION_DELETE);
+                        return true;
+                    }
+
+                    @Override
+                    public boolean onActionCancelled() {
+                        return true;
+                    }
+                };
+                GuiConfirmAction gui = new GuiConfirmAction(
+                        280,
+                        "schematic_synchronizer.gui.confirm_delete_group.title",
+                        listener,
+                        this,
+                        "schematic_synchronizer.gui.confirm_delete_group.message",
+                        g.getName()
+                );
+                GuiBase.openGui(gui);
+            });
+        } else if (g != null && myUuid != null && g.isMember(myUuid)) {
+            String leaveLabel = StringUtils.translate("schematic_synchronizer.gui.manage_group.leave_group");
+            int leaveW = this.getStringWidth(leaveLabel) + 20;
+            ButtonGeneric btnLeave = new ButtonGeneric(10, bottomY, leaveW, 20, leaveLabel);
+            btnLeave.setHoverStrings(StringUtils.translate("schematic_synchronizer.gui.manage_group.hover.leave_group"));
+            addButton(btnLeave, (btn, mouse) -> {
+                ClientHologramGroupManager.getInstance().leaveGroup(g.getId(), LeaveHologramGroupPayload.ACTION_LEAVE);
+                if (this.getParent() != null) {
+                    GuiBase.openGui(this.getParent());
+                } else {
+                    this.closeGui(true);
+                }
             });
         }
 
         String backLabel = StringUtils.translate("gui.back");
         int backW = 80;
         ButtonGeneric btnBack = new ButtonGeneric(this.width - backW - 10, bottomY, backW, 20, backLabel);
-        addButton(btnBack, (btn, mouse) -> closeGui(true));
+        addButton(btnBack, (btn, mouse) -> {
+            if (this.getParent() != null) {
+                GuiBase.openGui(this.getParent());
+            } else {
+                this.closeGui(true);
+            }
+        });
     }
 
     @Override
-    public void drawContents(GuiContext ctx, int mouseX, int mouseY, float partialTicks) {
-        super.drawContents(ctx, mouseX, mouseY, partialTicks);
+    protected int getBrowserWidth() {
+        return this.width - 20;
+    }
 
+    @Override
+    protected int getBrowserHeight() {
+        return this.height - 56;
+    }
+
+    @Override
+    protected void drawTitle(GuiContext ctx, int mouseX, int mouseY, float partialTicks) {
         HologramGroupData g = getGroup();
-        String grpName = (g != null) ? g.getName() : "";
-        String dimStr = (g != null) ? g.getDimension() : "";
-        String titleStr = "§6§l" + StringUtils.translate("schematic_synchronizer.gui.manage_group.title_with_name", grpName) +
-                "  §8|  §7" + dimStr;
-        this.drawStringWithShadow(ctx, titleStr, 10, 9, 0xFFFFAA00);
+        String dimStr = (g != null && g.getDimension() != null && !g.getDimension().isEmpty()) ? "  §8|  §7" + g.getDimension() : "";
+        this.drawString(ctx, this.getTitleString() + dimStr, 20, 10, -1);
+    }
+
+    @Override
+    protected WidgetListGroupMembers createListWidget(int listX, int listY) {
+        return new WidgetListGroupMembers(listX, listY, getBrowserWidth(), getBrowserHeight(), this);
     }
 }

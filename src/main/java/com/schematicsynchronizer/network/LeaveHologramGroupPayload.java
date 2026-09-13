@@ -8,6 +8,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 public record LeaveHologramGroupPayload(String groupId, int action) implements CustomPacketPayload {
     public static final int ACTION_DELETE = 0;
     public static final int ACTION_TRANSFER_RANDOM = 1;
+    public static final int ACTION_LEAVE = 2;
 
     public static final CustomPacketPayload.Type<LeaveHologramGroupPayload> TYPE =
             new CustomPacketPayload.Type<>(SchematicSynchronizer.id("leave_hologram_group"));
