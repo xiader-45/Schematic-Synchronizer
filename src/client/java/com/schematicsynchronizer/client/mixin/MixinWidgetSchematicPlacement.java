@@ -46,6 +46,10 @@ public abstract class MixinWidgetSchematicPlacement extends WidgetContainer {
     private void onInit(int x, int y, int width, int height, boolean isOdd,
                         SchematicPlacement placement, int listIndex,
                         WidgetListSchematicPlacements parent, CallbackInfo ci) {
+		if (!ClientSchematicManager.getInstance().isPlacedFromServer(placement)) {
+			return;
+		}
+
         // Group sync button: either "In Group <name>" or "Add to group"
         HologramGroupData group = ClientHologramGroupManager.getInstance().getGroupForPlacement(placement);
         if (group != null) {
@@ -73,6 +77,10 @@ public abstract class MixinWidgetSchematicPlacement extends WidgetContainer {
 
     @Unique
     private void updateGroupPlacementButtons() {
+		if (!ClientSchematicManager.getInstance().isPlacedFromServer(placement)) {
+			return;
+		}
+
         ButtonBase btnRemove = null;
         ButtonBase btnOnOff = null;
         ButtonBase btnConfig = null;
